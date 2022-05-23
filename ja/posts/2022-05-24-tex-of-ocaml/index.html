@@ -1,0 +1,132 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet type=text/css href=https://gfngfn.github.io/css/bootstrap.min.css><link rel=stylesheet type=text/css href=https://gfngfn.github.io/css/style.css><link rel=stylesheet type=text/css href=https://gfngfn.github.io/css/chroma.css><link rel=stylesheet href=https://gfngfn.github.io/css/katex.min.css><script defer src=https://gfngfn.github.io/js/katex.min.js></script>
+<script defer src=https://gfngfn.github.io/js/katex-auto-render.min.js onload=renderMathInElement(document.body)></script><title>TeX言語で型なしλ計算を評価するVMを書いた話 - gfnweb</title></head><body class="d-flex flex-column" style=min-height:100vh><nav id=nav class="navbar navbar-expand-lg navbar-dark bg-dark"><div class=container-fluid><a class=navbar-brand href=https://gfngfn.github.io/ja/>gfnweb</a>
+<button class=navbar-toggler type=button data-bs-toggle=collapse data-bs-target=#navbarSupportedContent aria-controls=navbarSupportedContent aria-expanded=false aria-label="Toggle navigation">
+<span class=navbar-toggler-icon></span></button><div class="collapse navbar-collapse" id=navbarSupportedContent><ul class="navbar-nav me-auto mb-2 mb-lg-0"><li class=nav-item><a class=nav-link href=/ja/><i data-feather=home></i>
+Home</a></li><li class=nav-item><a class=nav-link href=/ja/about/><i data-feather=user></i>
+About</a></li><li class="nav-item dropdown"><a class="nav-link dropdown-toggle" id=navbarDropdown role=button data-bs-toggle=dropdown aria-expanded=false><i data-feather=file-text></i>Language</a><ul class=dropdown-menu aria-labelledby=navbarDropdown><li><a class=dropdown-item href=https://gfngfn.github.io/posts/2022-05-24-tex-of-ocaml/>English</a></li><li><span class="dropdown-item disabled">日本語</span></li></ul></li></ul></div></div></nav><main class="mb-auto pb-5"><div class="jumbotron bg-light upcards-single-heading"><div class="mx-auto upcards-single-board"><h1 class=upcards-single-board-title>TeX言語で型なしλ計算を評価するVMを書いた話</h1><div class=upcards-time-section><p class=upcards-time><time datetime=2022-05-24>2022年5月24日</time></p></div><div><span style=position:relative;z-index:2><a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/tex>TeX</a>
+<a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/latex>LaTeX</a>
+<a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/%E8%A8%80%E8%AA%9E%E5%87%A6%E7%90%86%E7%B3%BB>言語処理系</a>
+<a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/rust>Rust</a>
+<a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/ocaml>OCaml</a></span></div></div></div><div id=toc class="upcards-toc px-3"><h3 class=mt-0>目次</h3><nav id=TableOfContents><ul><li><a href=#概要>概要</a></li><li><a href=#動作例>動作例</a><ul><li><a href=#入力を用意する>入力を用意する</a></li><li><a href=#出力の準備>出力の準備</a></li><li><a href=#コンパイルする>コンパイルする</a></li><li><a href=#実行>実行</a></li></ul></li><li><a href=#完全展開とは>完全展開とは</a></li><li><a href=#secdマシンとは>SECDマシンとは</a></li><li><a href=#コンパイラによるプログラムからvmのコードへの変換>コンパイラによるプログラムからVMのコードへの変換</a></li><li><a href=#どうやってvmをtex言語で完全展開可能に実装したか>どうやってVMをTeX言語で完全展開可能に実装したか</a><ul><li><a href=#内部表現>内部表現</a></li><li><a href=#多少技巧的なところ>多少技巧的なところ</a></li></ul></li><li><a href=#まとめ>まとめ</a></li></ul></nav></div><div class=upcards-single-content><div class="mx-auto upcards-single-board"><p>半ばネタOSSとして実装した <code>tex_of_ocaml</code><sup id=fnref:1><a href=#fn:1 class=footnote-ref role=doc-noteref>1</a></sup> について簡単に紹介します．型なしλ計算を多少程度知っていることを前提とします．</p><p>初出：</p><ul><li>2020年12月9日，<a href=https://qiita.com/gfngfn/items/b9a864e7de9e8e59a730>TeX言語で型なしλ計算を評価するVMを書いた話 - Qiita</a></li></ul><h2 id=概要>概要</h2><p><code>tex_of_ocaml</code> は以下のリポジトリで実装を公開しています（執筆当初のcommit hashは <code>e6e3997</code>）：</p><ul><li><a href=https://github.com/gfngfn/tex_of_ocaml.git>GitHub - gfngfn/tex_of_ocaml: A compiler for untyped lambda terms to TeX code</a></li></ul><p>これは以下の2つの構成要素からなっています：</p><ol><li>OCaml風の構文をもつ型なしラムダ項をTeX言語コードへとコンパイルする，Rust製の小さいコンパイラ</li><li>1のコンパイラから吐かれるコードを評価するTeX言語製のVM（＝バイトコードインタプリタ）</li></ol><p>1はあまり非自明なことをしておらず，かなり単純なコンパイラです<sup id=fnref:2><a href=#fn:2 class=footnote-ref role=doc-noteref>2</a></sup>．非自明なのは2で，これは <strong>SECDマシン</strong><sup id=fnref:3><a href=#fn:3 class=footnote-ref role=doc-noteref>3</a></sup> と呼ばれるVMを，TeX言語で <strong>完全展開</strong> によって評価が進む（すなわち，簡単に言えば <code>\edef</code> による定義の中で使える）ような形で実装したものです．</p><p>こうして型なしλ計算は完全展開可能な処理に限定したTeX言語コードにもエンコードすることができ，<strong>TeX言語は完全展開だけでTuring完全性をもつらしいことが体現できました</strong>．</p><h2 id=動作例>動作例</h2><p>リポジトリ直下で以下のように動かせます：</p><h3 id=入力を用意する>入力を用意する</h3><p>リポジトリに置いている例を使いましょう：</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-ocaml data-lang=ocaml><span class=line><span class=cl><span class=o>(</span><span class=k>fun</span> <span class=n>x</span> <span class=o>-&gt;</span> <span class=k>fun</span> <span class=n>f</span> <span class=o>-&gt;</span> <span class=n>f</span> <span class=o>(</span><span class=n>arabic</span> <span class=o>(</span><span class=n>add</span> <span class=n>1</span> <span class=n>x</span><span class=o>)))</span> <span class=n>42</span> <span class=o>(</span><span class=n>append</span> <span class=s2>&#34;foo&#34;</span><span class=o>)</span></span></span></code></pre></div></div><p><code>add</code> は自然数の加算，<code>arabic</code> は自然数から十進文字列への変換，<code>append</code> は文字列結合です．</p><h3 id=出力の準備>出力の準備</h3><p>出力先ディレクトリ <code>_generated/</code> を準備します．ここにVMの実装である <code>secd.sty</code> を置いておきます（このファイルもコンパイラに自動で出力させればいいのですが，サボってやっていません）：</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-console data-lang=console><span class=line><span class=cl><span class=gp>$</span> mkdir -p _generated
+</span></span><span class=line><span class=cl><span class=gp>$</span> cp src_tex/secd.sty _generated
+</span></span></code></pre></div></div><h3 id=コンパイルする>コンパイルする</h3><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-console data-lang=console><span class=line><span class=cl><span class=gp>$</span> cargo run examples/example3.txt -o _generated/example3.tex
+</span></span></code></pre></div></div><p>ちなみに中身を見てみると以下のようなコードが出ています：</p><p><div><img src=/media/tex-of-ocaml-1.png alt=出力されたLaTeXコード style=max-width:100%></div></p><h3 id=実行>実行</h3><p>評価を走らせ，処理結果のPDFを得ます：</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-console data-lang=console><span class=line><span class=cl><span class=gp>$</span> <span class=nb>cd</span> _generated
+</span></span><span class=line><span class=cl><span class=gp>$</span> latexmk example3.tex
+</span></span></code></pre></div></div><p>これを行なうと <code>_generated/example3.pdf</code> に結果のPDFが出力され，見てみると以下のようになっています：</p><p><div><img src=/media/tex-of-ocaml-2.png alt=出力されたPDF，「foo43」と書かれている style=max-width:100%></div></p><p>たしかに <code>(fun x -> fun f -> f (arabic (add 1 x))) 42 (append "foo")</code> の計算結果である <code>"foo43"</code> という文字列が出ていることがわかります．ちなみに最終結果は文字列だけでなく整数や真偽値でも適切に表示します<sup id=fnref:4><a href=#fn:4 class=footnote-ref role=doc-noteref>4</a></sup>．</p><p>もっと複雑な計算もできて，例えば階乗の計算も可能です．以下を入力とすると<sup id=fnref:5><a href=#fn:5 class=footnote-ref role=doc-noteref>5</a></sup>，</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-ocaml data-lang=ocaml><span class=line><span class=cl><span class=k>let</span> <span class=n>fix</span> <span class=o>=</span> <span class=o>(</span><span class=k>fun</span> <span class=n>f</span> <span class=o>-&gt;</span> <span class=o>(</span><span class=k>fun</span> <span class=n>x</span> <span class=o>-&gt;</span> <span class=n>f</span> <span class=o>(</span><span class=k>fun</span> <span class=n>v</span> <span class=o>-&gt;</span> <span class=n>x</span> <span class=n>x</span> <span class=n>v</span><span class=o>))</span> <span class=o>(</span><span class=k>fun</span> <span class=n>x</span> <span class=o>-&gt;</span> <span class=n>f</span> <span class=o>(</span><span class=k>fun</span> <span class=n>v</span> <span class=o>-&gt;</span> <span class=n>x</span> <span class=n>x</span> <span class=n>v</span><span class=o>)))</span> <span class=k>in</span>
+</span></span><span class=line><span class=cl><span class=k>let</span> <span class=n>fact</span> <span class=o>=</span> <span class=n>fix</span> <span class=o>(</span><span class=k>fun</span> <span class=n>f</span> <span class=o>-&gt;</span> <span class=k>fun</span> <span class=n>n</span> <span class=o>-&gt;</span> <span class=k>if</span> <span class=n>iszero</span> <span class=n>n</span> <span class=k>then</span> <span class=n>1</span> <span class=k>else</span> <span class=n>mult</span> <span class=n>n</span> <span class=o>(</span><span class=n>f</span> <span class=o>(</span><span class=n>sub</span> <span class=n>n</span> <span class=n>1</span><span class=o>)))</span> <span class=k>in</span>
+</span></span><span class=line><span class=cl><span class=n>fact</span> <span class=n>5</span></span></span></code></pre></div></div><p>以下のゴチャッとしたLaTeXコードが出てきて，</p><p><div><img src=/media/tex-of-ocaml-3.png alt=出力されたLaTeXコード style=max-width:100%></div></p><p>処理すると意図通り次のような計算結果の載ったPDFが出てきます：</p><p><div><img src=/media/tex-of-ocaml-4.png alt=出力されたPDF，「120」と書かれている style=max-width:100%></div></p><p>やったぜ．</p><h2 id=完全展開とは>完全展開とは</h2><p>念のためTeX言語での展開制御に親しみのない方向けに説明すると，<strong>完全展開</strong> とは簡単に言えばTeX処理系がTeX言語プログラムを処理する過程に於いてレジスタへの代入をはじめとする種々の “手続き的な処理” を行なわずに飛ばして展開（≒項書き換え）のみを行なうことであり，例えば <code>\edef〈Command〉{〈Tokens〉}</code> による定義では定義の右辺に相当する部分 <code>〈Tokens〉</code> が完全展開によって書き換えられた結果がコマンド <code>〈Command〉</code> の書き換え後の列と定義されます．完全展開中で展開できないトークンに出会った場合は単にそれを “処理する必要のないもの” として読み飛ばす<sup id=fnref:6><a href=#fn:6 class=footnote-ref role=doc-noteref>6</a></sup> ので，完全展開が行なわれる文脈では “純粋函数的な処理” となります．</p><h2 id=secdマシンとは>SECDマシンとは</h2><p>詳細は言語処理系の論文や教科書を読めばあると思いますが，<strong>SECDマシン</strong><sup id=fnref1:3><a href=#fn:3 class=footnote-ref role=doc-noteref>3</a></sup> はラムダ計算やそれに準ずる言語のプログラムを評価するVMを実現する方法のひとつで，その名の由来になっている通り \(S\) (Stack), \(E\) (Environment), \(C\) (Code), \(D\) (Dump) の4つ組の書き換え規則として定式化されています．これは次のような形式をとります：</p><p>\[\begin{align*}
+&\text{stacks} & S &::= [V]^{\ast}
+\\
+&\text{environments} & E &::= [V]^{\ast}
+\\
+&\text{code} & C &::= [I]^{\ast}
+\\
+&\text{dumps} & D &::= [(C, E)]^{\ast}
+\\
+&\text{values} & V &::= c\ |\ \langle C, E\rangle
+\end{align*}\]</p><p>ただし，\([X]^{\ast}\) は \(X\) が動く範囲のものを0個以上有限個並べた列を動くことを表し，\(c\) は整数や真偽値などの定数を動くとします．\(I\) は <strong>インストラクション</strong> と呼ばれる “VMに於ける命令の最小単位” であり，以下で定義されます<sup id=fnref:7><a href=#fn:7 class=footnote-ref role=doc-noteref>7</a></sup>：</p><p>\[\begin{align*}
+&\text{instructions} & I &::=
+\\
+&&&|\ \mathrm{Access}(i)
+\\
+&&&|\ \mathrm{Closure}(C)
+\\
+&&&|\ \mathrm{Apply}
+\\
+&&&|\ \mathrm{Return}
+\\
+&&&|\ \mathrm{Const}(c)
+\\
+&&&|\ \mathrm{Prim}(p)
+\end{align*}\]</p><p>ここで \(i\) はインデックスと呼ばれる機構で変数に相当し，自然数<sup id=fnref:8><a href=#fn:8 class=footnote-ref role=doc-noteref>8</a></sup>を動きます．また，\(p\) はプリミティヴ，すなわち整数の加算 \(+\) や真偽値の論理積 \(\land\) などといった，定数上の計算の方法を表したものを動きます．プリミティヴは各々アリティ（＝引数を何個とるか）をもち，\(p\) のアリティを \(\mathrm{arity}(p)\) と書くことにします．また \(p(V_1, \ldots, V_n)\) でその計算結果を表すことにします（例えば \(+(42, 57) = 99\)）．</p><p>直観を説明すると，\(S\) は計算中に用いる値がスタックとして積み重なっているもので，これは（スタックという名前が示す通り）上（＝手前）からしか値を出し入れしない機構です．\(E\) は環境で，変数に相当するインデックスに対してそれがどんな値であるかを保持しています．これはランダムアクセスされる機構です．コード \(C\) はインストラクション列であり，以下で見るように各インストラクションは次の書き換え処理を指示します．変換規則は後述しますが，この \(C\) がユーザの書いたプログラムからコンパイラによって変換されて出てくるものです．\(D\) は退避場所であり，“函数の呼び出し中に復帰後のコードと環境を保持しておく” という役割を果たします．</p><p>上記の直観を形式化して述べると，SECDマシンはコード \(C\) の評価にあたり \((\epsilon, \epsilon, C, \epsilon)\) を初期状態として以下の評価規則による書き換えを繰り返します（ただし \(\epsilon\) は空列，\((-) \cdot (-)\) は列の結合を表します）：</p><p>\[\begin{align*}
+(S, E, \mathrm{Access}(i) \cdot C, D) &\longrightarrow
+(E[i] \cdot S, E, C, D)
+\\
+(S, E, \mathrm{Closure}(C') \cdot C, D) &\longrightarrow
+(\langle C', E\rangle \cdot S, E, C, D)
+\\
+(V \cdot \langle C', E'\rangle \cdot S, E, \mathrm{Apply} \cdot C, D) &\longrightarrow
+(S, V \cdot E', C', (C, E) \cdot D)
+\\
+(S, E, \mathrm{Return} \cdot C, (C', E') \cdot D) &\longrightarrow
+(S, E', C', D)
+\\
+(S, E, \mathrm{Const}(c) \cdot C, D) &\longrightarrow
+(c \cdot S, E, C, D)
+\\
+(V_n \cdot \cdots \cdot V_1 \cdot S, E, \mathrm{Prim}(p) \cdot C, D) &\longrightarrow
+(p(V_1, \ldots, V_n) \cdot S, E, C, D)
+\\
+&\phantom{\longrightarrow}\quad(\text{where}\ n = \mathrm{arity}(p))
+\end{align*}\]</p><p>ただし \(E[i]\) は “\(E\) の \(i\) 番目の値を取り出したもの” で，以下のように定義されます：</p><p>\[\begin{align*}
+(V \cdot E)[0] &:= V
+\\
+(V \cdot E)[j + 1] &:= E[j]
+\end{align*}\]</p><p>上記の評価規則について直観を添えておくと，\(\langle C, E\rangle\) の形の値は <strong>クロージャ</strong> と呼ばれ，“計算 \(C\) とそのための環境 \(E\) が凍結されたもの” です．λ抽象に相当するインストラクション \(\mathrm{Closure}(C)\) はコード \(C\) とそのときの環境 \(E\) からクロージャをつくってスタックに積む命令です．\(\mathrm{Apply}\) は函数呼び出しに相当し，そのときのスタックの頂上から引数を，そのひとつ下から “呼び出され待ちの函数” にあたるクロージャを取り出して適用します．</p><p>そして最終的に \((V, E, \epsilon, \epsilon)\) の形で書き換えられなくなったら \(V\) が計算結果です．これ以外の形で書き換えられなくなった場合は不正な計算です（型なしの言語でいう動的エラーです）．また，書き換えが停止しないこともありえます（所謂無限ループに相当します）．</p><p>以上がSECDマシンというVMの定式化であり，後述するように今回TeX言語で実装したものです．</p><h2 id=コンパイラによるプログラムからvmのコードへの変換>コンパイラによるプログラムからVMのコードへの変換</h2><p>SECDマシンの初期状態の \(C\) にあたるコードはコンパイラが出力します．これは次のような2段階の変換を経ます（これも学部生向けの一般的な教科書などで触れられているような内容だと思います）：</p><ol><li>ユーザの書いたプログラムを受け取り，変数名をなくした <strong>de Bruijn表現</strong> へと変換する</li><li>1で変換した結果のde Bruijn表現を受け取り，VM用コードに変換する</li></ol><p>1は簡単に言えば変数を <strong>de Bruijnインデックス</strong> という番号による参照に置き換える処理です．まず，通常のλ項とde Bruijn表現の構文はそれぞれ以下の \(e\) と \(t\) で定義されます：</p><p>\[\begin{align*}
+e &::= x\ |\ \lambda x.\ e\ |\ e\ e\ |\ c\ |\ p([e]^{\ast})
+\\
+t &::= i\ |\ \lambda.\ t\ |\ t\ t\ |\ c\ |\ p([t]^{\ast})
+\end{align*}\]</p><p>ここで出てくるde Bruijnインデックス \(i\) は自然数で，簡単に言えば “何重の外側のλによってその変数が束縛されたか” を表します．変換は例を見ればわかりやすいと思います：</p><ul><li>\((\lambda x.\ \lambda y.\ x\ y)\) ↦ \((\lambda.\ \lambda.\ 1\ 0)\)</li><li>\((\lambda x.\ \lambda y.\ (\lambda z.\ z\ x)\ y)\) ↦ \((\lambda.\ \lambda.\ (\lambda.\ 0\ 2)\ 0)\)</li></ul><p>これを一般化した変換規則が以下で，通常の変数名をもつλ項 \(e\) に対応するde Bruijn表現は \(\mathrm{dB}(e)\) で定義されます：</p><p>\[\begin{align*}
+\mathrm{dB}(e) &:= \mathrm{dB}(\epsilon, e)
+\\
+\mathrm{dB}(w, x) &:=
+\mathrm{Index}(w, x)
+\\
+\mathrm{dB}(w, \lambda x.\ e) &:=
+\lambda.\ \mathrm{dB}(x \cdot w, e)
+\\
+\mathrm{dB}(w, e_1\ e_2) &:=
+\mathrm{dB}(w, e_1)\ \mathrm{dB}(w, e_2)
+\\
+\mathrm{dB}(w, c) &:=
+c
+\\
+\mathrm{dB}(w, p(e_1, \ldots, e_n)) &:=
+p(\mathrm{dB}(w, e_1), \ldots, \mathrm{dB}(w, e_n))
+\\
+\mathrm{Index}(y \cdot w, x) &:= 1 + \mathrm{Index}(w, x)\quad(\text{if}\ y \neq x)
+\\
+\mathrm{Index}(x \cdot w, x) &:= 0
+\end{align*}\]</p><p>2のde Bruijn表現からバイトコードへの変換もそれほど複雑ではなく，de Bruijn表現 \(t\) に対して以下の変換でVM用バイトコード \(\lfloor t\rfloor\) が得られます：</p><p>\[\begin{align*}
+\lfloor i\rfloor &:=
+\mathrm{Access}(i)
+\\
+\lfloor \lambda.\ t\rfloor &:=
+\mathrm{Closure}(\lfloor t\rfloor \cdot \mathrm{Return})
+\\
+\lfloor t_1\ t_2\rfloor &:=
+\lfloor t_1\rfloor \cdot \lfloor t_2\rfloor \cdot \mathrm{Apply}
+\\
+\lfloor c \rfloor &:=
+\mathrm{Const}(c)
+\\
+\lfloor p(t_1, \ldots, p_n) \rfloor &:=
+\lfloor t_1\rfloor \cdot \cdots \cdot \lfloor t_n\rfloor \cdot \mathrm{Prim}(p)
+\end{align*}\]</p><p>以上がユーザの書いたλ項のプログラム \(e\) をVMバイトコード \(C := \lfloor\mathrm{dB}(e)\rfloor\) に変換する過程です．</p><h2 id=どうやってvmをtex言語で完全展開可能に実装したか>どうやってVMをTeX言語で完全展開可能に実装したか</h2><p>で，肝腎のVMをどうやってTeX言語で完全展開可能になるように実装したかですが，SECDマシンを知っていてTeX言語の展開制御に慣れているなら，大域的な実装方針としては意外に変態技巧を要する箇所はありません．実装を見てもらうのが早いですが，思ったよりは読めるTeX言語コードになっていると思います（大量にコメントを書いたので，一般的なTeX言語コードに比べると読めると思います）：</p><ul><li>参考： <a href=https://github.com/gfngfn/tex_of_ocaml/blob/e3f146e9d76f898a81e3ef62555a2413c1d26266/src_tex/secd.sty>tex_of_ocaml/secd.sty at e3f146e9d76f898a81e3ef62555a2413c1d26266 · gfngfn/tex_of_ocaml · GitHub</a></li></ul><p>VMの定義自体は370行目で終わっており，それより後ろは全てプリミティヴの定義です．VMの処理としては以下の <code>\secd@Run</code> が根幹で，<code>\secd@Run{〈S〉}{〈E〉}{〈C〉}{〈D〉}</code> の展開が行なわれることで \((S, E, C, D)\) から次の状態へと遷移してまた <code>\secd@Run</code> が展開されるに至り，それを繰り返してやがて（うまくいけば） \(C\) が空列になって停止します．</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-tex data-lang=tex><span class=line><span class=cl><span class=k>\def\secd</span>@Run#1#2#3#4<span class=nb>{</span><span class=c>%
+</span></span></span><span class=line><span class=cl><span class=c></span>  <span class=c>%% #1 : stack
+</span></span></span><span class=line><span class=cl><span class=c></span>  <span class=c>%% #2 : environment
+</span></span></span><span class=line><span class=cl><span class=c></span>  <span class=c>%% #3 : code
+</span></span></span><span class=line><span class=cl><span class=c></span>  <span class=c>%% #4 : dump
+</span></span></span><span class=line><span class=cl><span class=c></span>  （中略）
+</span></span><span class=line><span class=cl><span class=nb>}</span></span></span></code></pre></div></div><h3 id=内部表現>内部表現</h3><p>内部表現についても実装の冒頭のコメントにメモしていますが，主な特徴をここにも記しておきます．</p><p>まず \(S\), \(E\), \(C\), \(D\) については結構素直で，単に要素を並べただけだったりします（以下では <code>［X］</code> で <code>X</code> の0個以上有限個の列を表すとします）：</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-tex data-lang=tex><span class=line><span class=cl>〈Stack〉 ::= ［〈Value〉］
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>〈Environment〉 ::= ［〈Value〉］
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>〈Code〉 ::= ［〈Instruction〉］
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>〈Dump〉 ::= ［<span class=k>\secd</span>@DUMP<span class=nb>{</span>〈Code〉<span class=nb>}{</span>〈Environment〉<span class=nb>}</span>］</span></span></code></pre></div></div><p>値は以下のように先頭にタグとなる制御綴，末尾に終端を示す制御綴，その間にエンコードされた値を置く，という形式をとっています：</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-tex data-lang=tex><span class=line><span class=cl>〈Value〉 ::=
+</span></span><span class=line><span class=cl>   | <span class=k>\secd</span>@CLOS<span class=nb>{</span>〈Code〉<span class=nb>}{</span>〈Environment〉<span class=nb>}</span><span class=k>\secd</span>@ENDVAL
+</span></span><span class=line><span class=cl>   | <span class=k>\secd</span>@INT<span class=nb>{</span>〈Number〉<span class=nb>}</span><span class=k>\secd</span>@ENDVAL
+</span></span><span class=line><span class=cl>   | <span class=k>\secd</span>@BOOL<span class=nb>{</span>〈Bool〉<span class=nb>}</span><span class=k>\secd</span>@ENDVAL
+</span></span><span class=line><span class=cl>   | <span class=k>\secd</span>@STRING<span class=nb>{</span>〈String〉<span class=nb>}</span><span class=k>\secd</span>@ENDVAL</span></span></code></pre></div></div><p>この先頭のタグが展開不能（具体的には <code>\relax</code> に <code>\let</code> されている）のが <code>\romannumeral</code> による先頭完全展開を停止させる仕組みとして結構重要だったりします．</p><p>インストラクションもわりと素直ですが，いずれも1引数限定という形式をとっています：</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-tex data-lang=tex><span class=line><span class=cl>〈Instruction〉 ::=
+</span></span><span class=line><span class=cl>  | <span class=k>\secd</span>@ACCESS<span class=nb>{</span>〈Index〉<span class=nb>}</span>
+</span></span><span class=line><span class=cl>  | <span class=k>\secd</span>@CLOSURE<span class=nb>{</span>〈Code〉<span class=nb>}</span>
+</span></span><span class=line><span class=cl>  | <span class=k>\secd</span>@APPLY<span class=nb>{}</span>
+</span></span><span class=line><span class=cl>  | <span class=k>\secd</span>@RETURN<span class=nb>{}</span>
+</span></span><span class=line><span class=cl>  | <span class=k>\secd</span>@CONST<span class=nb>{</span>〈Value〉<span class=nb>}</span>
+</span></span><span class=line><span class=cl>  | <span class=k>\secd</span>@PRIM<span class=nb>{</span>〈PrimitiveCommand〉<span class=nb>}</span></span></span></code></pre></div></div><p>de Bruijnインデックスはその個数だけ <code>*</code> を並べるという一進法で表しています：</p><div class=upcards-code-block><pre><code>〈Index〉 ::= ［*］</code></pre></div><p>まあde Bruijnインデックスは動的には増えないしプログラムの大きさ程度にしかならないので1進法でも別にいいという感じではありますが，実は定数である自然数もその個数だけ <code>o</code> を並べるという一進法でエンコードされています：</p><div class=upcards-code-block><pre><code>〈Number〉 ::= ［o］
+
+〈Bool〉 ::= T | F</code></pre></div><p>要するに計算途中に5億とか出たら <code>o</code> が5億個並ぶ内部表現になります．全然スケールせずやばい．二進法に修正することも可能なはずですが，実は最終結果をPDFに十進法で印字することを目指した都合で「とりあえず一進法なら実装が楽そうだな」と思いひとまずこういう形式化になっています．もし本気でこのソフトウェアを発達させるなら二進法の内部表現に切り替えたいですが，本気で発達させる気が今後起きる気はあまりしません．</p><h3 id=多少技巧的なところ>多少技巧的なところ</h3><p>今回の実装で技巧的な箇所があるとすれば以下の2つです（かなりTeX言語に詳しい方向けの端折った解説になっています）：</p><h4 id=expandafter-と-romannumeral-トリックによる先頭完全展開の促進><code>\expandafter</code> と <code>\romannumeral</code> トリックによる先頭完全展開の促進</h4><p>\(\mathrm{Access}(i)\) に対する処理でインデックス \(i\) を使って環境 \(E\) から値を取り出す処理や，加算などのプリミティヴによる計算を行なってその計算結果をスタックに積み直す処理など，いくつかの箇所で <code>\romannumeral</code> による先頭完全展開をふんだんに利用しています．</p><h4 id=hop-トリック><code>\hop</code> トリック</h4><p>これは伏線としてアドベントカレンダーで先週紹介しましたが，<code>\romannumeral</code> トリックによる先頭完全展開可能にするために <code>\hop</code> トリックを多用しています．</p><ul><li><a href=https://qiita.com/gfngfn/items/d681c6649ae391a6dc6b>TeX言語の条件分岐の展開規則と \hop トリック ＋応用 - Qiita</a></li></ul><p>制御綴としては実装中の <code>\secd@Hop</code>，<code>\secd@Then</code>，<code>\secd@HopOr</code> がそれに相当します．実は <code>\hop</code> トリック以外にも条件分岐を早期脱出する手法はあるのですが，<code>\hop</code> トリックは <code>\ifcase</code> によって3つ以上の条件分岐がある状況でも簡単に拡張できるのが利点だな，と書いていて感じました．</p><h2 id=まとめ>まとめ</h2><p>かなり雑然とした紹介になりましたが，型なしλ計算が完全展開可能な形で値呼びで評価できることを示しました．今回の記事では階乗の具体例で登場するだけで解説していませんが，（値呼びだと言語機能として追加しなけれなならない）条件分岐も扱うことができています．</p><p>現時点では特に実用性があるわけではありませんが，完全展開に限定してもTeX言語はTuring完全性をもつことを簡潔に示せたということが意義としてはあるかなという気がします．</p><p>もしもっと実用的なものにするなら，型なしλ計算で実装した処理をTeX/LaTeX側から呼べるようにするFFIの仕組みを導入してもいいかもしれません．</p><ul><li>想定される質問： 完全展開可能で嬉しいことあるか？<ul><li>回答： わからん．まあ実装できたことは嬉しい</li></ul></li><li>想定される質問： そういえばコンパイラ自体はTeX言語で書かなかったの？<ul><li>回答： それをやるには人生が惜しいのでやめました</li></ul></li><li>想定される質問： こんなソフトウェアを書いた時点で既に時間を無駄にしていないか？<ul><li>回答： はい</li></ul></li></ul><div class=footnotes role=doc-endnotes><hr><ol><li id=fn:1><p>OCamlユーザにとっては言わずもがなですが，名前は <code>js_of_ocaml</code> が元ネタです．この <code>js_of_ocaml</code> もさらに <code>string_of_int</code> などの標準ライブラリの特徴的な函数名を元ネタとしてつけられたと思しき名前ではあります．&#160;<a href=#fnref:1 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li><li id=fn:2><p>主にRustを学習する機会にちょうどいいやと思い簡単に書いたものです．コードはあまり洗煉されていません．&#160;<a href=#fnref:2 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li><li id=fn:3><p>Peter J. Landin. The Mechanical Evaluation of Expression. Computer Journal, 6, pp.308–320. 1964.&#160;<a href=#fnref:3 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a>&#160;<a href=#fnref1:3 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li><li id=fn:4><p>ただし最終結果がクロージャの場合は単に <code>(closure)</code> と印字されます．OCamlのREPLで函数が計算結果だった場合に <code>&lt;fun></code> と標準出力に出るようなものです．&#160;<a href=#fnref:4 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li><li id=fn:5><p>なお，コード中の <code>fix</code> は <strong>不動点コンビネータ</strong> と呼ばれる機構で，ここでは型なしの言語設定のため言語機能として用意せずとも定義できます（型つきの言語だと言語機能として入れないと使えません）．&#160;<a href=#fnref:5 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li><li id=fn:6><p>これはTeX言語の展開や実行の仕組みをほぼ知らない方向けに説明することが限りなく難しいですが，トークンには展開できるものとできないものの区別があり，展開できないものは通常の文字や一部プリミティヴが該当します．完全展開の文脈で展開できないトークンに出会った場合は単なる文字のように “出力の一部になるもの” としてその場では読み飛ばされます．展開できないトークンが消えたり，それに出会うとエラーになったりするわけではありません．&#160;<a href=#fnref:6 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li><li id=fn:7><p>実際には言語機能に応じてインストラクションの種類がいろいろ増えたりします．&#160;<a href=#fnref:7 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li><li id=fn:8><p>勿論0以上の整数のことです．&#160;<a href=#fnref:8 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li></ol></div></div></div><script type=text/javascript>const minScrollForFixed=300,fixedTop=30;function setTocPosition(){const e=document.documentElement.scrollTop;e<minScrollForFixed?tocElement.style.top=""+(fixedTop+(minScrollForFixed-e))+"px":tocElement.style.top=""+fixedTop+"px"}const tocElement=document.getElementById("toc");window.addEventListener("scroll",e=>{setTocPosition()}),setTocPosition()</script></main><footer class="footer py-3 bg-light"><p class="footer text-center">(c) 2022 Copyright: T. Suwa</p></footer><script src=https://gfngfn.github.io/js/bootstrap.bundle.min.js></script>
+<script src=https://gfngfn.github.io/js/masonry.pkgd.min.js></script>
+<script src=https://gfngfn.github.io/js/feather.min.js></script>
+<script>feather.replace()</script><script>window.addEventListener("load",function(){var t,e=document.getElementById("grid");e!==null&&(t=new Masonry(e,{itemSelector:".upcards-grid-item",horizontalOrder:!0,fitWidth:!0,gutter:0}))})</script></body></html>
