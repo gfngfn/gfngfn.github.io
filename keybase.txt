@@ -1,0 +1,53 @@
+https://keybase.io/gfngfn
+--------------------------------------------------------------------
+
+I hereby claim:
+
+  * I am an admin of https://gfngfn.github.io
+  * I am gfngfn (https://keybase.io/gfngfn) on keybase.
+  * I have a public key ASB3NT2MJbBm8rowUBm9bYWfAott0uEMhHdDLl4n08StIQo
+
+To do so, I am signing this object:
+
+{
+  "body": {
+    "key": {
+      "eldest_kid": "012077353d8c25b066f2ba305019bd6d859f028b6dd2e10c8477432e5e27d3c4ad210a",
+      "host": "keybase.io",
+      "kid": "012077353d8c25b066f2ba305019bd6d859f028b6dd2e10c8477432e5e27d3c4ad210a",
+      "uid": "d39e3cee7dbc84200d7e0b4ba8a25819",
+      "username": "gfngfn"
+    },
+    "merkle_root": {
+      "ctime": 1668777274,
+      "hash": "4a6fd4790cd1a27e61d47d9f2d67a729cad53d0cb576960c4ce7d84a16860a893c04cc9ad94011347c47b63f28204887b8f2f2488bd8236f05fd8defebfcd645",
+      "hash_meta": "550ffc49a21b32c9a2699d6e63f701b0e53641ab3b010ea5681979c1e15c8bae",
+      "seqno": 23574948
+    },
+    "service": {
+      "entropy": "MKKiQQTO+DQIKFMoyGLSho9h",
+      "hostname": "gfngfn.github.io",
+      "protocol": "https:"
+    },
+    "type": "web_service_binding",
+    "version": 2
+  },
+  "client": {
+    "name": "keybase.io go client",
+    "version": "6.0.1"
+  },
+  "ctime": 1668777358,
+  "expire_in": 504576000,
+  "prev": "10814345db7cc5aa62ee5f9f073c9f0c4179b19c0f806138e45f06da5d70feb9",
+  "seqno": 63,
+  "tag": "signature"
+}
+
+which yields the signature:
+
+hKRib2R5hqhkZXRhY2hlZMOpaGFzaF90eXBlCqNrZXnEIwEgdzU9jCWwZvK6MFAZvW2FnwKLbdLhDIR3Qy5eJ9PErSEKp3BheWxvYWTESpcCP8QgEIFDRdt8xapi7l+fBzyfDEF5sZwPgGE45F8G2l1w/rnEIBneEDuo6j9Fo5HmpU6vQIBkmQryAdrLPbhU6z2Fk+sTAgHCo3NpZ8RA1AWuf7KiNGYQZL3mvP7CPZgeOaLumHPSAGj+Zsk1N1/SNjsJau7RmXWgMjipEQ8UrgWdbmgX8VEM36nmGPS9C6hzaWdfdHlwZSCkaGFzaIKkdHlwZQildmFsdWXEIHbRR4mLKZURhQmDDTupyLMl4dt2Lm8P9Z+gYKz1X4BXo3RhZ80CAqd2ZXJzaW9uAQ==
+
+And finally, I am proving ownership of this host by posting or
+appending to this document.
+
+View my publicly-auditable identity here: https://keybase.io/gfngfn
