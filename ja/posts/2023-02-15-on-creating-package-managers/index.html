@@ -1,0 +1,146 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet type=text/css href=https://gfngfn.github.io/css/bootstrap.min.css><link rel=stylesheet type=text/css href=https://gfngfn.github.io/css/style.css><link rel=stylesheet type=text/css href=https://gfngfn.github.io/css/chroma.css><link rel=stylesheet href=https://gfngfn.github.io/css/katex.min.css><script defer src=https://gfngfn.github.io/js/katex.min.js></script>
+<script defer src=https://gfngfn.github.io/js/katex-auto-render.min.js onload=renderMathInElement(document.body)></script><title>パッケージマネージャを自作するときに考えること - gfnweb</title></head><body class="d-flex flex-column" style=min-height:100vh><nav id=nav class="navbar navbar-expand-lg navbar-dark bg-dark"><div class=container-fluid><a class=navbar-brand href=https://gfngfn.github.io/ja/>gfnweb</a>
+<button class=navbar-toggler type=button data-bs-toggle=collapse data-bs-target=#navbarSupportedContent aria-controls=navbarSupportedContent aria-expanded=false aria-label="Toggle navigation">
+<span class=navbar-toggler-icon></span></button><div class="collapse navbar-collapse" id=navbarSupportedContent><ul class="navbar-nav me-auto mb-2 mb-lg-0"><li class=nav-item><a class=nav-link href=/ja/><i data-feather=home></i>
+Home</a></li><li class=nav-item><a class=nav-link href=/ja/about/><i data-feather=user></i>
+About</a></li><li class=nav-item><a class=nav-link href=https://github.com/gfngfn><i data-feather=github></i>
+GitHub</a></li><li class=nav-item><a class=nav-link href=https://twitter.com/bd_gfngfn><i data-feather=twitter></i>
+Twitter</a></li><li class="nav-item dropdown"><a class="nav-link dropdown-toggle" id=navbarDropdown role=button data-bs-toggle=dropdown aria-expanded=false><i data-feather=file-text></i>Language</a><ul class=dropdown-menu aria-labelledby=navbarDropdown><li><a class=dropdown-item href=https://gfngfn.github.io/posts/2023-02-15-on-creating-package-managers/>English</a></li><li><span class="dropdown-item disabled">日本語</span></li></ul></li></ul></div></div></nav><main class="mb-auto pb-5"><div id=articleHeading class="jumbotron bg-light upcards-single-heading"><div class="mx-auto upcards-single-board"><h1 class=upcards-single-board-title>パッケージマネージャを自作するときに考えること</h1><div class=upcards-time-section><p class=upcards-time><time datetime=2023-02-15>2023年2月15日</time></p></div><div><span style=position:relative;z-index:2><a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/%E8%A8%98%E4%BA%8B>記事</a>
+<a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/%E8%A8%80%E8%AA%9E%E5%87%A6%E7%90%86%E7%B3%BB>言語処理系</a></span></div><div class=mt-3><a href="https://twitter.com/share?ref_src=twsrc%5Etfw" class=twitter-share-button data-show-count=false>Tweet</a></div></div></div><div class=upcards-single-content><div class="mx-auto upcards-single-board"><p>プログラミング言語を自前で創っていると，パッケージマネージャが欲しくなってくるものだ．既存パッケージマネージャやそのラッパーによる配布で事足りることも多いが，その設計が自前言語の要件とうまく合わなかったりして，真に自分で実装する必要が出てきたりもする．そうした場合，パッケージマネージャをどんな設計にすべきだろうか？ あまり言語固有のdomain-specificなことには触れないでおきつつも何を考慮すべきか検討し，設計例を提示してみたい．</p><p>本稿はパッケージマネージャの<strong>設計</strong>に焦点を当てたものであり，効率的に依存制約を解消するアルゴリズムなど実装の詳細については解説しない．実際，OCamlでは <code>0install-solver</code> というOPAMの裏でも使われている制約解消用のパッケージが公開されており，これを利用すれば制約解消アルゴリズムそのものに踏み込まずとも制約解消処理を実装できるので，（それ自体に興味があるときを除けば）必ずしもアルゴリズムを理解する必要はない．</p><div id=toc class="upcards-toc px-3"><h3 class=mt-0>目次</h3><nav id=TableOfContents><ul><li><a href=#前提-パッケージマネージャは何をするものか>前提： パッケージマネージャは何をするものか</a></li><li><a href=#設計上の主な選択肢>設計上の主な選択肢</a><ul><li><a href=#レジストリは1つか複数か>レジストリは1つか複数か</a></li><li><a href=#レジストリ中のパッケージの名前空間>レジストリ中のパッケージの名前空間</a></li><li><a href=#開発者によるパッケージのレジストリへの登録は自由か否か>開発者によるパッケージのレジストリへの登録は自由か否か</a></li><li><a href=#まとめ-望ましい選択肢は>まとめ： 望ましい選択肢は？</a></li></ul></li><li><a href=#既存パッケージマネージャの設計を比較してみる>既存パッケージマネージャの設計を比較してみる</a></li><li><a href=#設計実装上面倒なところ>設計・実装上面倒なところ</a><ul><li><a href=#レジストリの識別方法>レジストリの識別方法</a></li><li><a href=#同一パッケージの異なるバージョンを共存させるか否か>同一パッケージの異なるバージョンを共存させるか否か</a></li><li><a href=#ダウンロードした依存パッケージの実装の配置方法>ダウンロードした依存パッケージの実装の配置方法</a></li><li><a href=#ビルド時に処理系が依存パッケージをどう読み込むのか>ビルド時に処理系が依存パッケージをどう読み込むのか</a></li></ul></li><li><a href=#実際に設計例を与えてみる>実際に設計例を与えてみる</a><ul><li><a href=#コンフィグファイル>コンフィグファイル</a></li><li><a href=#レジストリが保持している情報>レジストリが保持している情報</a></li><li><a href=#ロックファイル>ロックファイル</a></li></ul></li><li><a href=#まとめ>まとめ</a></li></ul></nav></div><h2 id=前提-パッケージマネージャは何をするものか>前提： パッケージマネージャは何をするものか</h2><p>パッケージマネージャはその設計により種々の差異があるが，おおよそどの設計にもみられる最大公約数的な機能を最初に述べておく．パッケージマネージャは，主として以下のようなタスクをこなしてくれる：</p><ul><li><strong>依存解決</strong>： プロジェクト中の<strong>コンフィグファイル</strong>と呼ばれる設定ファイルにユーザが記載した「どんなパッケージのどのバージョンを使いたいか」の情報を読み取り，その<strong>依存制約</strong>をもとに（間接的に依存するものを含めて）必要なパッケージとそのバージョンを算出する．決定できたら<strong>ロックファイル</strong>と呼ばれるファイルにその結果を書き出し，実際に各パッケージの必要なバージョンの実装を取得してマシン中に適切に配置したりもする．依存制約を満たす組み合わせが存在しなかった場合は「この制約を満たすバージョンの組み合わせはありません」という旨を報告し，異常系として何もせず終える．<ul><li>この過程では，各パッケージの各バージョンがどんなパッケージにどんな制約で依存しているかを網羅した情報が必要になる．これはおおまかに言えば<strong>パッケージレジストリ</strong>または単に<strong>レジストリ</strong>と呼ばれる機構へとネットワーク経由で問い合わせることによって行なわれる．実装の取得などもレジストリにあるデータをもとに行なう．</li></ul></li><li><strong>ビルド</strong>： 依存解決が適切に行なわれていることを前提として，配置された依存パッケージの各実装とともに手元のプロジェクトのコンパイルなどを行なう．<ul><li>ビルドに必要な依存パッケージの情報は，ロックファイルを参照することで得られる．</li></ul></li></ul><p>上記で登場した用語もまとめておく：</p><ul><li><strong>パッケージ</strong>：<ul><li>リリースのための単位．複数のリリースが1つのパッケージという単位に紐づけられる．ほとんどの場合は識別・指定のために<strong>パッケージ名</strong>という名前がついている．パッケージ名がどのような名前空間に属するかは設計により異なる．</li></ul></li><li><strong>バージョン</strong>：<ul><li>パッケージの各リリースがもつ，他のリリースと区別してそのリリースを一意に識別するための番号的文字列．<code>1.3.2</code> など．新旧や後方互換性の有無などを判定するのにも使うことが多い．本稿では簡単のため<strong>semantic version</strong>を指して単にバージョンと呼ぶとする．</li></ul></li><li>パッケージの<strong>実装</strong>：<ul><li>パッケージの1つのリリースを構成する，具体的なソースファイルなどの集まりのこと．</li></ul></li><li><strong>パッケージレジストリ</strong>（または単に<strong>レジストリ</strong>）：<ul><li>ユーザがネットワークを経由するなどして取得できるようにするために，各パッケージのリリース済みの各実装が登録されている機構．レジストリがただ1つしか存在しないという設計になっているものもあれば，複数扱えるものもある．</li></ul></li><li><strong>依存パッケージ</strong>：<ul><li>何らかの実装が，そのビルド・動作のために存在を前提するパッケージのこと．依存パッケージおよびそのうちどのバージョンを使いたいかの指定は，後述の<strong>コンフィグファイル</strong>によって為される．</li></ul></li><li><strong>コンフィグファイル</strong>：<ul><li>ユーザがどのパッケージのどのバージョン（またはそれに後方互換な）の実装を使いたいかなどを列挙して書いておく設定ファイル．Cargoの <code>Cargo.toml</code>，Pythonの <code>requirements.txt</code> などがこれに該当する．</li></ul></li><li><strong>ロックファイル</strong>：<ul><li>パッケージマネージャがコンフィグファイルの記述をもとに依存解決をした後，各パッケージの実装がどのバージョンのものに固定されたかを記録して出力するファイル．Rust/Cargoの <code>Cargo.lock</code>，Rebar3の <code>rebar.lock</code> などがこれに該当する．ユーザのソースファイルをビルドする際に参照されるほか，再現性を担保するのにも使われる．人間がこのファイルを直接手でいじることはない．</li></ul></li></ul><h2 id=設計上の主な選択肢>設計上の主な選択肢</h2><h3 id=レジストリは1つか複数か>レジストリは1つか複数か</h3><p>まずは以下の設計上の選択肢がある：</p><ul><li>(1) レジストリは固定の1つだけ</li><li>(2) レジストリが複数扱えて，かつ自由に新規のレジストリが立てられる</li></ul><p>レジストリを1個にすると，設計・実装の上で考えるべきことはかなり減る．しかし，レジストリ1個では要件の拡大に応じてすぐに限界が見えてくる．例えば，もしインターネット全体に向けては公開しないが特定のグループ内ではパッケージとみなしたいという社内ライブラリのようなものを扱う要件に対応するには，以下のような対処が必要だ：</p><ul><li>(1&rsquo;) レジストリは1個だが，ユーザは自由にパッケージを登録でき，しかも特定の権限を持ったユーザにのみ見えるように設定できたりもする</li></ul><p>(1&rsquo;)を採用するデメリットとしては，閲覧権限を制御するのはレジストリ管理者であり，パッケージマネージャの全てのユーザが中央集権的なレジストリ管理者を信頼することが前提になってしまう．実際には管理者が閲覧制限のあるパッケージの実装を秘密裏に覗いているかもしれず，その可能性を排除するにはさらに暗号理論的な込み入った仕組みが必要になってくる．或いは単純にGitHubのプライベートなリポジトリをレジストリに登録するという方式にすればそのリポジトリにアクセスできる人しか取得処理に成功しないし管理者にも内容が閲覧されないとして事足りるかもしれないが，その場合でもプライベートリポジトリの存在自体はレジストリ管理者へと伝達してしまうことになる．</p><p>一方で(2)の場合，そもそもアクセスできる人の限られた社内ネットワークなどにレジストリを立てることで閲覧権限の管理をネットワークでの対処に帰着でき，比較的簡単である．</p><p>どちらを選ぶかは好みだが，長期的に見れば(2)の方が単純で済む公算が大きいのではないかと個人的には思う．</p><h3 id=レジストリ中のパッケージの名前空間>レジストリ中のパッケージの名前空間</h3><p>ユーザから見える点ではこれが最も重要かもしれない．以下のいずれかの選択がある：</p><ul><li>(A) 1つのレジストリ中でパッケージ名が単一の名前空間に平坦に並ぶようにする</li><li>(B) 開発者ごとに名前空間を分け，\(\mathit{developerName}/\mathit{pkgName}\) の形にする</li></ul><p>(A)はパッケージを使う側が開発者名を覚えなくてよいので簡便だが，異なる開発者の間で使いたい名前が衝突する可能性がある．(B)は利点と弱点が反転し，(A)と(B)の間でトレードオフがある．とはいえ，(B)の方式でも「実績と信頼のあるパッケージは開発者名を指定しなくてもよい空間にも登録し，典型的には開発者のユーザ名を覚える必要がないようにする」という方法で煩雑さを緩和したりはできる．</p><p>もしレジストリが1つしかない(1)の設計を採用するなら，名前空間は(B)にしておくのが無難ではないかと思う．あらゆるパッケージ名が誰でも好きに取得できて全世界に対して同名を使えないように強いられる(A)のような設計は，衝突するおそれが高すぎるように思えて心もとない．</p><p>一方で，もしレジストリを複数扱える(2)の設計を採用するなら，(B)ほどの用心深い選択をしなくともよいかもしれない．衝突しえない自分専用の名前空間が欲しいと思ったユーザは自分用のレジストリを立てれば事足りるからだ．</p><h3 id=開発者によるパッケージのレジストリへの登録は自由か否か>開発者によるパッケージのレジストリへの登録は自由か否か</h3><ul><li>(X) パッケージ名が未使用ならば早い者勝ちで自由にレジストリに登録できる</li><li>(Y) レジストリにパッケージを登録するにはレジストリ管理者によるレビューの通過が必要</li></ul><p>これもいささかトレードオフ気味で，(X)はレビューなどに要する人的リソースを消費せず登録の障壁も低いが悪意のある登録を防ぐ方法がない．(Y)は悪意のある登録を拒絶しやすいが登録の障壁が上がったり人的リソースを消費する．また，レジストリが1つしかない(1)の場合は，(Y)を採用すると中央集権的すぎるという議論を呼びそうな性質も浮上してくる．</p><p>一方で，レジストリが複数建てられる(2)の場合は(Y)を選びやすいかもしれない．というのも，レジストリを好きに立てられるので，既存のレジストリが気に入らなければ自分でレジストリを立てて管理者になることで部分的には(X)の状況を実現できるからだ．とはいえ，自分のパッケージを他人に使ってもらいやすくするという観点では完全に(X)と同等の状況が実現できているとはとても言えず，結局信頼を得て既存レジストリに自分のパッケージを登録してもらうに越したことはない．</p><p>結局これはユーザのコミュニティをどのような形にしていきたいかという思想・志向と密接に関わっている設計上の選択肢であろうと思う．</p><h3 id=まとめ-望ましい選択肢は>まとめ： 望ましい選択肢は？</h3><p>上記の3軸各2通りで計8通りが考えられるが，そのうちいくつかは既に部分的に述べたように弱点があり，採用を避けた方がよさそうだ：</p><ul><li>(1)かつ(A)： レジストリが1つしかないのにパッケージ名の名前空間が平坦<ul><li>→ 名前の “占有力” が高すぎるきらいがある．</li></ul></li><li>(A)かつ(X)： 名前空間が開発者ごとに分かれていないが登録が自由<ul><li>→ 悪意のある登録により名前が取られすぎたりするおそれがある．</li><li>SNSのユーザ名もこれに該当するものの，大抵は登録段階でメールアドレスや電話番号などと1対1に紐づけるように課されるので，悪意を持って大量に取得されるおそれが比較的低減されている．</li></ul></li></ul><p>また，以下は弱点とは言わないまでも積極的に選ぶ理由がない：</p><ul><li>(B)かつ(Y)： 名前空間が開発者ごとに分かれているがレビューを受ける必要がある<ul><li>→ 結局レビューするのであれば，安全のために名前空間を分けている必要性が薄い．</li></ul></li></ul><p>これらを除くと，望ましい設計は以下の3種類しかない：</p><ul><li>(1)-(B)-(X)： レジストリ1つ，開発者ごとに名前空間分離，登録自由</li><li>(2)-(A)-(Y)： レジストリ複数共存可能，名前空間はレジストリ中では平坦，登録はレビュー通過必要</li><li>(2)-(B)-(X)： レジストリ複数共存可能，開発者ごとに名前空間分離，登録自由</li></ul><p>さらに，既に述べたように(2)かつ(B)は名前空間の分離に関してやや冗長すぎるきらいもあり，上2つの2択が無難かといったところ．</p><h2 id=既存パッケージマネージャの設計を比較してみる>既存パッケージマネージャの設計を比較してみる</h2><p>既にあるパッケージマネージャがどのパターンにあてはまるか見てみる：</p><ul><li><strong>OPAM</strong>： (2)-(A)-(Y) の変種<ul><li>本稿で言うレジストリのことは “repository” と呼んでいる．</li><li>(2)： <code>opam-repository</code> というデフォルトのレジストリがあるが，誰でもレジストリを新設できる．</li><li>どのレジストリを使うかは，ユーザがレジストリ名を指定して \(\mathit{regName} \mapsto \mathit{regUrl}\) の写像として手元に保持しておく．ここでユーザが指定したレジストリ名 \(\mathit{regName}\) はそのマシン全体で使われるが，単に表示やCLIでの指定をわかりやすくするための識別に使うものであり，<strong>提供元レジストリの情報はコンフィグファイルには明記されない</strong>．</li><li>(A)： ユーザからみて，パッケージ名は提供元レジストリによらず平坦な名前空間に並ぶ．さらに，<strong>異なるレジストリが同一パッケージ名のバージョン違いを提供している場合，それらは同一パッケージの異なるバージョンとみなされる</strong>．そのため，或る意味では全世界で1つの平坦な名前空間である．</li><li>(Y)： レジストリにパッケージを登録するには，基本的にはレジストリ管理者によってレビューされる必要がある．</li></ul></li><li><strong>Cargo</strong>： (2)-(A)-(X)<ul><li>(2)： <code>crates.io</code> を事実上のデフォルトのレジストリとするが，誰でもレジストリを新設できる．</li><li>どのレジストリを使うかは，ユーザ側がレジストリ名を指定して \(\mathit{regName} \mapsto \mathit{regUrl}\) の写像としてプロジェクト中の <code>./.cargo/config.toml</code> の <code>registries</code> に記載しておく．レジストリ名は <code>Cargo.toml</code> 中で依存関係の指定に使われるなど，ビルド処理に関しても意味がある．</li><li>(A)： <code>crates.io</code> をはじめとする1つのレジストリの内では，パッケージ名はフラットな名前空間をなす．すなわち，\(\mathit{regName} \mapsto (\mathit{pkgName} \mapsto \mathit{pkgMetadata})\) の形で扱われる．同一パッケージ名の2パッケージも提供元レジストリが違えば別パッケージである．</li><li>(X)： <code>crates.io</code> は<strong>誰でもレビューなどを経ずに簡単にパッケージが登録できる</strong>．</li></ul></li><li><strong>Elm</strong>： (1)-(B)-(X)<ul><li>(1)： 唯一のレジストリ <code>package.elm-lang.org</code> で全てのパッケージが管理されている．</li><li>(B)： パッケージはGitHubのリポジトリのように <code>〈UserName〉/〈PkgName〉</code> という形式の名前をとり，ユーザごとに名前空間が分かれている．標準ライブラリも <code>elm/http</code> などとして扱われる．</li><li>(X)： パッケージの登録にはレビューの通過が必要．</li></ul></li></ul><p>異なるレジストリ起源でもパッケージ名が同じなら同一パッケージとみなすというOPAMの設計はなかなか尖っている．これはfork版を別レジストリを用いて外挿するのには便利だが，レジストリ間でパッケージ名が意図せず衝突してしまうおそれもある．また，OPAMのコンフィグファイルである <code>.opam</code> にはレジストリの情報を記述する必要がなかったり，依存解決後もロックファイルが必ずしも作成されなかったりするので，再現性の担保の点でOPAMにはやや難があると言えるかもしれない．</p><p>Cargoは前節で望ましくないものとして退けた(A)かつ(X)の設計になっている．実際に悪意のあるパッケージ名の確保がやや問題視されているらしい？</p><h2 id=設計実装上面倒なところ>設計・実装上面倒なところ</h2><h3 id=レジストリの識別方法>レジストリの識別方法</h3><p>レジストリを複数扱えて自由に立てられるような設計にする場合，レジストリを識別する方法が必要である．ひとまず以下の2種類の方法が考えられそうだ：</p><ol><li>レジストリ名とレジストリURIの紐づけを登録制にし，どこかで中央集権で管理する</li><li>レジストリURI自体で識別する</li></ol><p>しかし，前者は難しい．レジストリが複数扱えるようにする動機としては，社内ライブラリを登録するレジストリなど非公開のものを扱うためという点が大きい．これが要件である限り，レジストリの存在自体も明らかにする必要がないものにすることが望ましい．したがって，<strong>基本的にはレジストリを識別する方法は後者のURIを直接識別に使うくらいしかない</strong>．</p><p>しかし，URIにも少し厄介な点がある： 文字列として等しくないものでも同一視する必要があったりするのである．例えば以下の3つはどれも同じGitHubリポジトリを指す：</p><ul><li><code>https://github.com/foo-lang/main-registry</code></li><li><code>https://github.com/foo-lang/main-registry.git</code></li><li><code>https://github.com/foo-lang/Main-Registry</code></li></ul><p>これらのURIを同一視せねばならないほか，もし広範なUnicodeコードポイントを含むURIをサポートするならNFCやNFDなどを取って正規化したりする必要もある．<strong>こうした同一視の方法を適切に設計・実装せねばならない</strong>．</p><p>ちなみにCargoはどうしているかというと，実装を見るに意外とアドホックなことをしている．ドメインが <code>github.com</code> の場合だけ特別に大文字小文字の同一視や <code>.git</code> の有無の同一視をしているらしい：</p><ul><li><a href=https://github.com/rust-lang/cargo/blob/412b6339147265743488cb2fe6073cc250fdf7f0/src/cargo/util/canonical_url.rs>cargo/canonical_url.rs at 412b6339147265743488cb2fe6073cc250fdf7f0 · rust-lang/cargo</a></li></ul><h3 id=同一パッケージの異なるバージョンを共存させるか否か>同一パッケージの異なるバージョンを共存させるか否か</h3><p>例えば手元のプロジェクトがパッケージ <code>A</code> の <code>^1.0.0</code> とパッケージ <code>B</code> の <code>^1.1.0</code> に直接依存しており，<code>B</code> の <code>^1.1.0</code> が実装によらず必ず <code>A</code> の <code>^2.1.0</code> に依存している場合，Aの <code>1.x</code> と <code>2.x</code> という非互換な2つのバージョンが共存せねばビルドできない．こうした状況を許容してうまく扱うか，それともこうした状況はそもそもビルドしてはいけないものとして拒否するか，という設計上の選択肢がある．これはパッケージマネージャだけでなく言語仕様にも関わる問題である．また，どちらを選ぶかがパッケージマネージャに於ける依存解決の方法にも関わってくる．</p><p>多くの場合，共存を許容できるようにする方が設計に巧妙さを要求される．また，同一パッケージの非互換なバージョンの共存が避けられる場合は避けるという最適化を行なうなら，依存解決のアルゴリズムが難しくなったりもしそうだ．</p><h3 id=ダウンロードした依存パッケージの実装の配置方法>ダウンロードした依存パッケージの実装の配置方法</h3><p>ダウンロードした依存パッケージの実装は，ビルドで使うのに備えてローカルマシンに配置する必要があるが，配置時にレジストリの識別をどうするかが問題になる（これはエンドユーザから見える設計の問題ではなく内部実装の問題）．まず，取得した実装の配置場所としては以下の2つの選択肢がある：</p><ol><li>プロジェクトごとに配置<ul><li><code>./_build/</code> や <code>./target/</code> といったディレクトリの下に置かれることが多い．</li></ul></li><li>マシン内の共通の場所に配置<ul><li><code>~/.foo-lang-manager/</code> などのディレクトリが使われることが多い．</li></ul></li></ol><p>前者を採用する場合は柔軟である．例えばプロジェクト中のコンフィグファイルには使用するレジストリとその名前が列挙されているとしよう：</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>registries</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;default&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>uri</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;https://github.com/foo-lang/main-registry&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;enterprise&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>uri</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;https://your-company.com/foo-lang-registry&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>dependencies</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;json&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requirement</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^1.2.0&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>registry</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;default&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;service_http_handler&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requirement</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^2.1.3&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>registry</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;enterprise&#34;</span></span></span></code></pre></div></div><p><code>registries</code> で定義されている <code>default</code> とか <code>enterprise</code> といったレジストリ名はこのプロジェクト内でのみ通用する名前である．この名前を利用して，取得した実装は以下のように配置できる：</p><div class=upcards-code-block><pre><code>your-project/
+└── _build/
+    └── dependencies/
+        ├── default/
+        │   ├── future.3.0.1/
+        │   │   └── …
+        │   ├── json.1.2.1/
+        │   │   └── …
+        │   └── stdlib.2.6.0/
+        │       └── …
+        └── enterprise/
+            └── service_http_handler.2.1.3/
+                └── …</code></pre></div><p>というわけで，プロジェクト単独で扱えるならファイル配置はわりと単純である．</p><p>しかし，プロジェクトごとに配置する方式はストレージ容量や取得時の通信コストを無駄に取りやすい．例えば，とりわけNode.jsの <code>./node_modules/</code> などは容量を取るものとして悪名高い．したがって容量消費や取得処理に関して無駄のない後者のような配置が志向される．</p><p>後者の場合は，複数プロジェクトから同一の形式で見えるように配置せねばならない．したがって，プロジェクト固有のレジストリ名が使えず，レジストリを識別する方法はやはりURIのみとなる．そして，このURIの文字列がファイルシステムとはとても相性が悪いので，URIのファイルシステム上へのマッピングは多少工夫を要する．以下の3つの方法がある：</p><ol><li>URI中の <code>/</code> などを別の文字に置換してからファイルパスの一部に使う</li><li>URIを正規化した上でパスをそのままディレクトリの階層にしてしまう</li><li>URIを正規化した上でMD5などのハッシュ値をとる</li></ol><p>まず，1も意外に面倒だ．ファイルシステム中で自信をもって使える文字は存外少ないのである．例えばPOSIXのportable file name character setには大小英数と <code>.</code>，<code>_</code>，<code>-</code> しかない．それゆえ，もともと含まれていた <code>_</code> を <code>__</code> にエスケープしつつ <code>/</code> を <code>_s</code> に変換する，といったぎこちない変換をする必要がある．また，より広範なUnicodeコードポイントを含むURIなどもサポートしようとするとさらに面倒になっていく．</p><p>2は要するに以下のような具合である：</p><div class=upcards-code-block><pre><code>~/.foo-lang-manager/
+└── packages/
+    ├── github.com/
+    │   └── foo-lang/
+    │       └── main-registry/
+    │           ├── future.3.0.1/
+    │           │   └── …
+    │           ├── json.1.2.1/
+    │           │   └── …
+    │           └── stdlib.2.6.0/
+    │               └── …
+    └── your-company.com/
+        └── foo-registry/
+            └── service_http_handler.2.1.3/
+                └── …</code></pre></div><p>妙に階層が深くなってしまったりしてちょっとヘンテコだが，例えばmodule-aware modeでないGo言語での <code>$GOPATH</code> 以下のファイル配置は実際にこのようになっている．</p><p>一方で，3は階層が深くならない：</p><div class=upcards-code-block><pre><code>~/.foo-lang-manager/
+└── packages/
+    ├── 4a651c872776cf4c697505a568ac4102/  # "github.com/foo-lang/main-registry" の MD5
+    │   ├── future.3.0.1/
+    │   │   └── …
+    │   ├── json.1.2.1/
+    │   │   └── …
+    │   └── stdlib.2.6.0/
+    │       └── …
+    └── 11c9a72f6215c6103daa7c3a79961b0e/  # "your-company.com/foo-registry" の MD5
+        └── service_http_handler.2.1.3/
+            └── …</code></pre></div><p>Cargoは実際に配置されたファイルを見るにこの3に近い方式をとっているように見える．</p><h3 id=ビルド時に処理系が依存パッケージをどう読み込むのか>ビルド時に処理系が依存パッケージをどう読み込むのか</h3><p>依存パッケージのソースファイルを配置した後のことも考える必要がある．パッケージマネージャではなく処理系本体が依存パッケージの実装をどう読み込むかが非自明なのだ．要するにパッケージマネージャと処理系とで責務をどう切り分けるかの問題なのだが，主に以下の3つの選択肢がある：</p><ol><li>パッケージマネージャと処理系とが同一ソフトウェアであるとし，したがって処理系はそもそも依存パッケージの実装がどのように配置されているかを知っている</li><li>ビルドしたい場合，ユーザはパッケージマネージャを叩くことで間接的に処理系を起動するものとする．ビルドを任されたパッケージマネージャは処理系を起動し，依存パッケージの実装がどこにあるかをコマンドオプションなどによって渡す</li><li>ロックファイルの形式を処理系側が規定し，パッケージマネージャはそれに合わせて出力する</li></ol><p>ElmやGo言語は1の方式を，Rust/Cargoは2の方式を，それぞれ採っているものと思われる．OCamlも2に近い方式だが，これはパッケージマネージャとビルドシステムが分かれておりさらに複雑である．3は原理的にはできるだろうという程度の話で，実例は寡聞にして見たことがない．</p><p>なお，1の方式には「パッケージマネージャが処理系と一体化しているため，使っているパッケージに合わせて処理系のバージョンを適切に選んでビルドする機能の実現が難しい」といった弱点がある．</p><h2 id=実際に設計例を与えてみる>実際に設計例を与えてみる</h2><p>ここでは以下のパターンを採用してみよう：</p><ul><li>(2)-(A)-(Y)： レジストリ複数共存，名前空間はレジストリ中では平坦，登録はレビュー通過必要</li><li>取得した実装はマシン内の共通の場所に配置し，レジストリURIはハッシュ値を取ってパスに使う文字列にする</li><li>パッケージマネージャと処理系は一体化している</li><li>同一パッケージの非互換なバージョンも共存してよい</li></ul><h3 id=コンフィグファイル>コンフィグファイル</h3><p>ユーザがコンフィグファイルに記述すべき内容は，以下の <code>ConfigFile</code> の形式であるとする（記法はいい加減だが伝わることを期待する）：</p><div class=upcards-code-block><pre><code>ConfigFile ::= {
+  language:   SemverRequirement,  # プロジェクトが期待する言語のバージョン
+  authors:    List[String],       # 開発者一覧
+  registries: List[Registry],     # コンフィグファイル中で参照するレジストリ
+  contents:   Contents,           # プロジェクトの内容
+}
+
+# バージョン制約
+SemverRequirement ::= "^" Semver | "=" Semver | ...
+
+# バージョン
+Semver ::= ...
+
+# レジストリ情報
+Registry ::= {
+  name: RegistryName,
+  uri:  Uri,
+}
+
+# コンフィグファイル中で使えるレジストリ名．英数アンダースコアからなる
+RegistryName ::= [a-z][a-z0-9_]*
+
+# URI
+Uri ::= ...
+
+# プロジェクトの内容
+Contents ::= {
+  source_directories: List[RelativePath],
+  test_directories:   List[RelativePath],
+  dependencies:       List[Dependency],
+}
+
+# 依存パッケージとそのバージョン制約
+Dependency ::= {
+  name:        PackageName,        # パッケージ名
+  requirement: SemverRequirement,  # 期待するバージョン
+  registry:    RegistryName,       # 取得元レジストリ
+  used_as:     Identifier,         # プロジェクトのソースコードからどんな名前で参照されるか
+}
+
+# パッケージ名．英数アンダースコアからなる
+PackageName ::= [a-z][a-z0-9_]*
+
+# 識別子．英数アンダースコアからなる
+Identifier ::= [a-z][a-z0-9_]*</code></pre></div><h3 id=レジストリが保持している情報>レジストリが保持している情報</h3><p>各レジストリは，以下の <code>RegistryFile</code> にあたる内容を保持している必要がある：</p><div class=upcards-code-block><pre><code>RegistryFile ::= {
+  registries: List[Registry],      # 他のレジストリを参照するためのエントリ
+  packages:   List[PackageEntry],  # 登録されているパッケージ群
+}
+
+# 登録されている1つのパッケージ
+PackageEntry ::= {
+  name:            PackageName,
+  implementations: List[Implementation],  # パッケージの各バージョン
+}
+
+# 1つのバージョンに関するデータ
+Implementation ::= {
+  version:      Semver,
+  source:       Source,             # どのようにソースファイルが取得できるか
+  language:     SemverRequirement,  # この実装が言語に期待するバージョン
+  dependencies: List[Dependency],   # 依存パッケージの指定（基本的にはコンフィグファイルから転記されたもの）
+}
+
+Source ::= TarGzipSource | ...
+
+# .tar.gz 形式で固められたソースファイル群
+TarGzipSource ::= {
+  uri:      Uri,     # リクエストすべきURI
+  checksum: String,  # 取得したファイルの内容が期待通りか確認するためのチェックサム
+}</code></pre></div><p>パッケージマネージャは，定期的にこのデータをレジストリに問い合わせて取得し，依存解決のために使う．</p><h3 id=ロックファイル>ロックファイル</h3><p>前節のコンフィグファイルとそこで使われたレジストリから得た情報をもとにパッケージマネージャが依存解決の結果生成するロックファイルは，以下の <code>LockFile</code> のような形式とする：</p><div class=upcards-code-block><pre><code>LockFile ::= {
+  locks:        List[Lock],
+  dependencies: List[LockDependency],  # プロジェクトが直接依存する実装の列挙
+}
+
+Lock ::= {
+  id:           String,                # 参照用に振られた何らかのID
+  registry_uri: Uri,
+  name:         PackageName,
+  version:      Semver,
+  dependencies: List[LockDependency],  # 依存する実装の列挙
+}
+
+LockDependency ::= {
+  id:      String,
+  used_as: Identifier,
+}</code></pre></div><p>こちらはバージョンが固定された実装間の依存関係を記録しているのが重要である．ビルドの際にはこの依存関係を参照してトポロジカルソートし，どの実装から読み込めばよいかを判定する．また，同一パッケージの複数バージョンの共存も可能になっている．</p><h2 id=まとめ>まとめ</h2><p>本稿では，パッケージマネージャを制作するにあたって設計上判断が分かれる部分や厄介な問題が起きやすい部分に焦点を当てて考察し，「望ましい選択肢の組み合わせがいくつかある」ということを導出した．また，その選択肢のうちの1つを選んで実際にミニマルなパッケージマネージャのコンフィグファイルやロックファイルの設計を与えてみた．</p><p>おそらく読者からすれば実際に自らパッケージマネージャを設計しようと思案を巡らせてみない限り本稿で取り上げた内容が実感を伴って把握できないのではないかとも危惧するが，パッケージマネージャをつくる際に最低限の転ばぬ先の杖として参考としてもらえれば幸いである．</p></div></div><script type=text/javascript>const pageNavbarHeight=50,fixedTop=30;function setTocPosition(e){const t=document.documentElement.scrollTop;t<e?tocElement.style.top=""+(fixedTop+(e-t))+"px":tocElement.style.top=""+fixedTop+"px"}const tocElement=document.getElementById("toc");tocElement!==null&&window.addEventListener("load",n=>{const t=document.getElementById("articleHeading").offsetHeight,e=t+pageNavbarHeight;window.addEventListener("scroll",t=>{setTocPosition(e)}),setTocPosition(e)})</script><script async src=https://platform.twitter.com/widgets.js></script></main><footer class="footer py-3 bg-light"><p class="footer text-center">(c) 2023 Copyright: T. Suwa</p></footer><script src=https://gfngfn.github.io/js/bootstrap.bundle.min.js></script>
+<script src=https://gfngfn.github.io/js/masonry.pkgd.min.js></script>
+<script src=https://gfngfn.github.io/js/feather.min.js></script>
+<script>feather.replace()</script><script>window.addEventListener("load",function(){var t,e=document.getElementById("grid");e!==null&&(t=new Masonry(e,{itemSelector:".upcards-grid-item",horizontalOrder:!0,fitWidth:!0,gutter:0}))})</script></body></html>
