@@ -152,6 +152,12 @@ li {
   padding: 0px;
 }
 
+/*| Cancels the bottom margin of a paragraph
+  | if a display math formula follows the paragraph. */
+p:has(+ .upcards-math-block) {
+  margin-bottom: 0px;
+}
+
 .upcards-math-block {
   overflow-x: auto;
 }
@@ -303,4 +309,10 @@ div.footnotes {
   height: 120px;
   object-fit: contain;
   border-radius: 10px 0 0 10px;
+}
+
+.upcards-github-repo-card svg a {
+/* For disabling underlines on GitHub repository cards:
+  text-decoration: none;
+*/
 }
