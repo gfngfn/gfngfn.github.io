@@ -1,0 +1,309 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet type=text/css href=https://gfngfn.github.io/css/bootstrap.min.css><link rel=stylesheet type=text/css href=https://gfngfn.github.io/css/style.css><link rel=stylesheet type=text/css href=https://gfngfn.github.io/css/chroma.css><link rel=stylesheet href=https://gfngfn.github.io/css/katex.min.css><script defer src=https://gfngfn.github.io/js/katex.min.js></script>
+<script defer src=https://gfngfn.github.io/js/katex-auto-render.min.js onload=renderMathInElement(document.body)></script><title>SATySFi 0.1.0の新しいエコシステムSapheのプロトタイプについて（後編） - gfnweb</title></head><body class="d-flex flex-column" style=min-height:100vh><nav id=nav class="navbar navbar-expand-lg navbar-dark bg-dark"><div class=container-fluid><a class=navbar-brand href=https://gfngfn.github.io/ja/>gfnweb</a>
+<button class=navbar-toggler type=button data-bs-toggle=collapse data-bs-target=#navbarSupportedContent aria-controls=navbarSupportedContent aria-expanded=false aria-label="Toggle navigation">
+<span class=navbar-toggler-icon></span></button><div class="collapse navbar-collapse" id=navbarSupportedContent><ul class="navbar-nav me-auto mb-2 mb-lg-0"><li class=nav-item><a class=nav-link href=/ja/><i data-feather=home></i>
+Home</a></li><li class=nav-item><a class=nav-link href=/ja/about/><i data-feather=user></i>
+Profile</a></li><li class=nav-item><a class=nav-link href=https://github.com/gfngfn><i data-feather=github></i>
+GitHub</a></li><li class=nav-item><a class=nav-link href=https://twitter.com/bd_gfngfn><i data-feather=twitter></i>
+Twitter/X</a></li><li class="nav-item dropdown"><a class="nav-link dropdown-toggle" id=navbarDropdown role=button data-bs-toggle=dropdown aria-expanded=false><i data-feather=file-text></i>Language</a><ul class=dropdown-menu aria-labelledby=navbarDropdown><li><a class=dropdown-item href=https://gfngfn.github.io/posts/2024-03-31-saphe-a-new-prototype-ecosystem-for-satysfi-the-second-half/>English</a></li><li><span class="dropdown-item disabled">日本語</span></li></ul></li></ul></div></div></nav><main class="mb-auto pb-5"><div id=articleHeading class="jumbotron bg-light upcards-single-heading"><div class="mx-auto upcards-single-board"><h1 class=upcards-single-board-title>SATySFi 0.1.0の新しいエコシステムSapheのプロトタイプについて（後編）</h1><div class=upcards-time-section><p class=upcards-time><time datetime=2024-03-31>2024年3月31日</time></p></div><div><span style=position:relative;z-index:2><a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/article>記事</a>
+<a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/satysfi>SATySFi</a>
+<a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/programming-language>プログラミング言語</a>
+<a class="btn btn-sm btn-outline-dark tag-btn upcards-tag-button" href=https://gfngfn.github.io/ja/tags/typesetting>組版</a></span></div><div class=mt-3><a href="https://twitter.com/share?ref_src=twsrc%5Etfw" class=twitter-share-button data-show-count=false>Tweet</a></div></div></div><div class=upcards-single-content><div class="mx-auto upcards-single-board"><p><a href=./../2024-01-15-saphe-a-new-prototype-ecosystem-for-satysfi-the-first-half>前編</a>に続いて，後編ではSapheが裏側でどのように動いているかの設計・実装について概説します．特に，SapheとSATySFi本体とがどのように責務を分担しているかが重要な内容です．単にSapheを使いたい人は本稿で扱う内容を把握しておく必要はなく，前編のみで十分です．</p><div id=toc class="upcards-toc px-3"><h3 class=mt-0>目次</h3><nav id=TableOfContents><ul><li><a href=#パッケージレジストリが保持するデータの構造>パッケージレジストリが保持するデータの構造</a></li><li><a href=#saphe-solve-がやっていること><code>saphe solve</code> がやっていること</a><ul><li><a href=#基礎的な定式化>基礎的な定式化</a></li><li><a href=#ロックファイルに出力される内容>ロックファイルに出力される内容</a></li><li><a href=#複数レジストリの場合>複数レジストリの場合</a></li><li><a href=#同一パッケージの非互換な複数バージョンの共存を許す場合>同一パッケージの非互換な複数バージョンの共存を許す場合</a></li></ul></li><li><a href=#取得したファイルは手元でどこに配置されるか>取得したファイルは手元でどこに配置されるか</a></li><li><a href=#saphe-update-がやっていること><code>saphe update</code> がやっていること</a></li><li><a href=#saphe-build-がやっていること><code>saphe build</code> がやっていること</a><ul><li><a href=#エンベロープ-satysfi本体からはパッケージがどう見えるか>エンベロープ： SATySFi本体からはパッケージがどう見えるか</a></li><li><a href=#依存コンフィグファイルの生成>依存コンフィグファイルの生成</a></li></ul></li><li><a href=#future-work>Future Work</a></li><li><a href=#sapheが規定する各種形式>Sapheが規定する各種形式</a><ul><li><a href=#パッケージコンフィグ>パッケージコンフィグ</a></li><li><a href=#ロックファイル>ロックファイル</a></li><li><a href=#ストアルートコンフィグ>ストアルートコンフィグ</a></li><li><a href=#レジストリコンフィグ>レジストリコンフィグ</a></li><li><a href=#リリースコンフィグ>リリースコンフィグ</a></li></ul></li><li><a href=#satysfiが規定する各種形式>SATySFiが規定する各種形式</a><ul><li><a href=#依存コンフィグ>依存コンフィグ</a></li><li><a href=#エンベロープコンフィグ>エンベロープコンフィグ</a></li></ul></li></ul></nav></div><h2 id=パッケージレジストリが保持するデータの構造>パッケージレジストリが保持するデータの構造</h2><p>パッケージレジストリは，基本的には各パッケージがどんなバージョンを提供していてそれぞれのバージョンがどのような実装かを保持しています．つまり，基本的には以下のようなマップを保持しているとみてよいもので，根幹はわりと単純な機構です：</p><div class=upcards-math-block><p>\[ \mathit{pkgName} \mapsto (\mathit{semver} \mapsto \mathit{release})\]</p></div><p>しかし，パッケージレジストリは単にこれを単一のコンフィグファイルに記録するだけで済ませては不都合になる，以下のようないくつかの事情があります：</p><ul><li>利用が進むと，記載されているパッケージの数は莫大になり，保守に困るほどコンフィグファイルが巨大になってしまうかもしれない．例えば，エディタで読み込むのに支障が出るかもしれない．</li><li>コンフィグファイルをGitHubなどで管理する場合，パッケージを登録するPRがコンフリクトしやすくなる．記載順序をパッケージの名前順でソートするとしても，その順番で近いものがなおコンフリクトする．</li><li>エコシステムはうまくいけば長い寿命が予期されるソフトウェアであり，要件が変わってコンフィグの形式を非互換に変えたくなることも十分ありうるが，単一のファイルだと形式の変更に際して既存の記述の前方互換性が失われてしまい，古いバージョンのエコシステムからの利用ができなくなる．</li></ul><p>そこで，上記の問題を緩和するために，新しいバージョンごとに \(\mathit{release}\) 相当の内容を1つのファイルに記述する形式にします．これを<strong>リリースコンフィグファイル</strong> (<em>release config file</em>) と呼び，ファイル名は <code>〈PkgName〉.〈Semver〉.saphe-release.yaml</code> という形とします．内容はほぼパッケージコンフィグファイルと同じようなもので，以下のような具合です：</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>saphe</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^0.0.1&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>satysfi</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^0.1.0&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;std-ja&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>version</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;0.0.1&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>source</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>tar_gzip</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>url</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;https://gfngfn.github.io/temp/std-ja.0.0.1.tar.gz&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>checksum</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;c705d4e239c05cd980b51a5401090510&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>dependencies</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Stdlib&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;stdlib&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requirement</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^0.0.1&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Math&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;math&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requirement</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^0.0.1&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Annot&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;annot&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requirement</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^0.0.1&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Code&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;code&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requirement</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^0.0.1&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;FontJunicode&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;font-junicode&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requirement</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^0.0.1&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;FontLatinModern&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;font-latin-modern&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requirement</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^0.0.1&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;FontIpaEx&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;font-ipa-ex&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requirement</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^0.0.1&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;FontLatinModernMath&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;font-latin-modern-math&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requirement</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^0.0.1&#34;</span></span></span></code></pre></div></div><p>このリリースコンフィグが以下のような形で配置されて1つのパッケージレジストリを成しています：</p><div class=upcards-code-block><pre><code>./
+├── saphe-registry.yaml
+└── packages/
+    ├── 〈PkgName_1〉/
+    │   ├── 〈PkgName_1〉〈Semver_1_1〉.saphe-release.yaml
+    │   ├── 〈PkgName_1〉〈Semver_1_2〉.saphe-release.yaml
+    │   ...
+    ├── 〈PkgName_2〉/
+    │   ├── 〈PkgName_2〉〈Semver_2_1〉.saphe-release.yaml
+    │   ├── 〈PkgName_2〉〈Semver_2_2〉.saphe-release.yaml
+    ... ...</code></pre></div><p>根元のディレクトリには<strong>レジストリコンフィグファイル</strong> <code>saphe-registry.yaml</code> が置かれますが，これは将来的にレジストリの形式を変えたくなった場合に互換性を判定するのに使うためのもので，今のところそれ以外の本質的情報は記載されていません．</p><h2 id=saphe-solve-がやっていること><code>saphe solve</code> がやっていること</h2><p><code>saphe solve</code> は，簡単に言えばバージョン制約の解決を行なって結果をロックファイルに書き出し，必要なパッケージを取得・配置しているのでした（<a href=./../2024-01-15-saphe-a-new-prototype-ecosystem-for-satysfi-the-first-half>前編</a>の図再掲）：</p><p><div><img src=/media/saphe-a-new-prototype-ecosystem-for-satysfi-1.png alt="saphe solveの動作の概略図" style=max-width:100%></div></p><p>この章ではその制約解決がどのような定式化であるかを記載します．</p><h3 id=基礎的な定式化>基礎的な定式化</h3><p>簡単のため，まずは以下の場合に限定して説明します：</p><ul><li>使用するパッケージレジストリは1つだけ</li><li>1つのパッケージに対して高々1つのバージョンが選択される</li></ul><p>制約解決に於いて，パッケージレジストリ \(\mathit{reg}\) は以下のように看なせます：</p><div class=upcards-math-block><p>\[\begin{align*}
+&\mathit{reg} \in (\mathrm{PkgName} \stackrel{\mathrm{fin}}{\rightharpoonup} (\mathrm{Semver}\stackrel{\mathrm{fin}}{\rightharpoonup} \mathrm{Deps}))
+\\
+&\mathit{reg} = \{\mathit{pkgName}_i \mapsto \{\mathit{semver}_{i,j} \mapsto \mathit{deps}_{i,j}\}_{j = 1}^{\mathit{numReleases}_i}\}_{i = 1}^{\mathit{numPkgs}}
+\end{align*}\]</p></div><p>ここで \(A \stackrel{\mathrm{fin}}{\rightharpoonup} B\) は \(A\) から \(B\) への有限部分写像全体を表し，また \(\mathit{deps}_{i,j} \in \mathrm{Deps}\) は各リリースが依存するパッケージとそのバージョン制約を列挙したものであって以下のような形をしています：</p><div class=upcards-math-block><p>\[\begin{align*}
+&\mathit{deps}_{i,j} \in \mathrm{Deps} := (\mathrm{PkgName} \stackrel{\mathrm{fin}}{\rightharpoonup} \mathrm{Constraint})
+\\
+&\mathit{deps}_{i,j} = \{\mathit{depPkgName}_{i,j,k} \mapsto \mathit{constraint}_{i,j,k}\}_{k = 1}^{\mathit{numDeps}_{i,j}}
+\end{align*}\]</p></div><p>開発中のプロジェクトが直接依存するパッケージの列挙を \(\mathit{directDeps} \in \mathrm{Deps}\) とすると，バージョン制約の<strong>解決結果</strong>とは，いくつかの<strong>リリース</strong>（＝特定のバージョンに固定されたパッケージ）の列挙であって，大雑把に言えば以下を満たしてほしいものです：</p><ol><li>\(\mathit{directDeps}\) に列挙されたパッケージが，いずれもそのバージョン制約を満たす1つのバージョンに固定されている．</li><li>解決結果に含まれる各リリースが依存するどのパッケージも，その制約を満たすバージョンのリリースで解決結果に含まれている．</li><li>循環依存が含まれていない．</li><li>上記1–3を満たしつつ，不要な依存パッケージを含んでいない．</li></ol><p>これをよりフォーマルに述べると，バージョン制約の解決結果とは，以下を満たすような \(\mathit{solut} \in \mathrm{Solut} := (\mathrm{PkgName} \stackrel{\mathrm{fin}}{\rightharpoonup} \mathrm{Semver})\) のうち包含関係に関して極小なものです：</p><div class=upcards-math-block><p>\[\begin{align*}
+(1)\quad
+&\forall (\mathit{depPkgName} \mapsto \mathit{constraint}) \in \mathit{directDeps}.\\
+&\mathit{constraint} \vDash \mathit{solut}(\mathit{depPkgName})
+\\
+(2)\quad
+&\forall (\mathit{pkgName} \mapsto \mathit{semver}) \in \mathit{solut}.\\
+&\forall (\mathit{depPkgName} \mapsto \mathit{constraint}) \in \mathit{all}(\mathit{pkgName})(\mathit{semver}).\\
+&\mathit{constraint} \vDash \mathit{solut}(\mathit{depPkgName})
+\\
+(3)\quad
+&\forall \mathit{pkgName} \forall \mathit{pkgName}^{\prime} \in \mathop{\mathrm{dom}}(\mathit{solut}).\\
+&\mathit{pkgName} \triangleright_{D(\mathit{reg}, \mathit{solut})}^{\ast} \mathit{pkgName}^{\prime} \land
+\mathit{pkgName}^{\prime} \triangleright_{D(\mathit{reg}, \mathit{solut})}^{\ast} \mathit{pkgName} \Rightarrow\\
+&\mathit{pkgName} = \mathit{pkgName}^{\prime}
+\end{align*}\]</p></div><p>ただし，\((\vDash) \subseteq \mathrm{Constraint} \times \mathrm{Semver}\) は \(\mathit{constraint} \vDash \mathit{semver}\) でバージョン \(\mathit{semver}\) がバージョン制約 \(\mathit{constraint}\) を満たすことを表す二項関係です．また，\(D(\mathit{reg}, \mathit{solut}) \in (\mathrm{PkgName} \stackrel{\mathrm{fin}}{\rightharpoonup} \mathrm{Deps})\) は解消結果の各リリースの依存を列挙したものであり，以下のように定義されます：</p><div class=upcards-math-block><p>\[\begin{align*}
+&
+D(\mathit{reg}, \mathit{solut}) :=
+\\&\quad
+\{\mathit{pkgName} \mapsto \mathit{reg}(\mathit{pkgName})(\mathit{semver}) \mid (\mathit{pkgName} \mapsto \mathit{semver}) \in \mathit{solut}\}
+\end{align*}\]</p></div><p>そして，\(d \in (\mathrm{PkgName} \stackrel{\mathrm{fin}}{\rightharpoonup} \mathrm{Deps})\) に対して \(\triangleright_{d}^{\ast}\) は \(\triangleright_{d}\) の反射推移閉包であり，その \(\mathit{pkgName} \triangleright_{d} \mathit{pkgName}^{\prime}\) は \(d\) に於いてパッケージ \(\mathit{pkgName}\) がパッケージ \(\mathit{pkgName}^{\prime}\) に直接依存することを表します：</p><div class=upcards-math-block><p>\[\mathit{pkgName} \triangleright_d \mathit{pkgName}^{\prime}
+\mathrel{\mathord{:}\mathord{\Longleftrightarrow}}
+\mathit{pkgName}' \in \mathop{\mathrm{dom}}(d(\mathit{pkgName}))\]</p></div><p>つまり，\((3)\) は（自身を含む）間接依存を判定する二項関係 \(\triangleright_{D(\mathit{reg}, \mathit{solut})}\) が半順序であることを要請しています．</p><h3 id=ロックファイルに出力される内容>ロックファイルに出力される内容</h3><p>バージョン制約解決は，基本的には得られた上記のような解決結果 \(\mathit{solut}\) をロックファイルへと書き出して終了なのですが，\(\mathit{solut}\) だけだとその後のビルドに際して毎回パッケージレジストリ \(\mathit{reg}\) を参照しなければ依存パッケージの読み込み順序が決定できません．この \(\mathit{reg}\) は利用が進めば巨大になるものなので，ビルドごとに逐一 \(\mathit{reg}\) を参照していては著しく効率が悪くなるおそれがあります．また，登録されている依存関係に間違いが見つかったりするとレジストリ管理者やパッケージ作成者が \(\mathit{reg}\) の内容を一部修正したくなることもありそうなため，これを可能にするためにも \(\mathit{reg}\) 中の既存のリリース情報が将来に亘って変更されないことは仮定しない方がよいでしょう．これらの理由から，\(\mathit{reg}\) のうちビルドに必要な情報だけを抜き出してロックファイルに書き出すということを行ないます．具体的には上記の \(D(\mathit{reg}, \mathit{solut})\) と \(\mathop{\mathrm{dom}}(\mathit{directDeps})\) にあたる内容も \(\mathit{solut}\) に加えて書き出します．</p><p>この結果，<strong>ロックファイルに書き出す内容は，直観的には開発中のプロジェクトやパッケージの間の依存関係を記述した有向非巡回グラフになっています</strong>．すなわち，開発中のプロジェクトを \(\mathrm{project}\) と表すとして，この有向非巡回グラフ \((V, E)\) は，頂点集合が</p><div class=upcards-math-block><p>\[V := \{\mathrm{project}\} \uplus \{(\mathit{pkgName}, \mathit{semver}) \mid (\mathit{pkgName} \mapsto \mathit{semver}) \in \mathit{solut}\}\]</p></div><p>であり，\(u\) から \(v\) への依存関係が（\(D(\mathit{reg}, \mathit{solut})\) と \(\mathop{\mathrm{dom}}(\mathit{directDeps})\) に基づいて張られた）有向辺 \((u, v) \in E\) になっています．図示すると以下のような具合です：</p><p><div><img src=/media/saphe-a-new-prototype-ecosystem-for-satysfi-4.png alt=ロックファイルの内容をグラフと捉えた場合の模式図 style=max-width:100%></div></p><h3 id=複数レジストリの場合>複数レジストリの場合</h3><p>これは定式化上はそれほど難しくありません．というのも，前節の議論の \(\mathrm{PkgName}\) を \(\mathrm{RegId} \times \mathrm{PkgName}\) というレジストリ識別用のIDを付加したものに置き換えてしまえば基本的には事足りるためです．ただし，実装上は以下の点でそれなりに面倒です：</p><ul><li>新たに管理の仕組みを設けずに全世界で一意的にパッケージレジストリを識別するためのIDは，正規化したレジストリのURLくらいしかない<ul><li>ちなみに，これに関連して理想的にはパッケージレジストリ側も正規化に関して同値なものを除いて一意なURLでしか自身を公開しないようにする必要がある．</li></ul></li><li>取得したファイルをマシンに配置するために，パッケージレジストリのURLをローカルのファイルシステムで使える名前にマップする必要があったりする</li><li>ユーザはレジストリの識別用の値を直接書くのではなく，URLなどにより指定する</li><li>レジストリの識別用の値からはレジストリのURLなどがそのままでは復元できない</li></ul><p>このあたりの話は「<a href=./../2023-02-15-on-creating-package-managers>パッケージマネージャを自作するときに考えること</a>」で詳しめに扱っています．</p><h3 id=同一パッケージの非互換な複数バージョンの共存を許す場合>同一パッケージの非互換な複数バージョンの共存を許す場合</h3><p>こちらはなかなか大変です．すでに<a href=./2024-01-15-saphe-a-new-prototype-ecosystem-for-satysfi-the-first-half>前編</a>で紹介しましたが，Sapheでは同一パッケージの非互換な複数バージョンが共存できるようにするために <code>used_as</code> というリネーミング用の指定があります．これにより，パッケージへの依存は <code>used_as</code> に指定された名前が紐づき，以下のような形態に一般化されます：</p><div class=upcards-math-block><p>\[\mathrm{Deps} := (\mathrm{RegId} \times \mathrm{PkgName} \stackrel{\mathrm{fin}}{\rightharpoonup} (\mathrm{ModuleName} \stackrel{\mathrm{fin}}{\rightharpoonup} \mathrm{Constraint}))\]</p></div><p>同様に，解決結果も以下のように一般化されます：</p><div class=upcards-math-block><p>\[\mathrm{Solut} := (\mathrm{RegId} \times \mathrm{PkgName} \stackrel{\mathrm{fin}}{\rightharpoonup} (\mathrm{ModuleName} \stackrel{\mathrm{fin}}{\rightharpoonup} \mathrm{Semver}))\]</p></div><p>フォーマルに定式化を書いていると大変なので省略しますが，直観としてはロックファイルに書き出される有向非巡回グラフは各有向辺に <code>used_as</code> のモジュール名のラベルがつくように拡張されます．すなわち，出力されるグラフは以下のような \((V, E, w)\) です：</p><ul><li>頂点集合は \(V \subseteq_{\mathrm{fin}} (\mathrm{PkgName} \times \mathrm{Semver}) \uplus \{\mathrm{project}\}\) の形で，同一パッケージの頂点が一般には複数あるが，同一パッケージに由来する任意の2つの頂点 \((\mathit{pkgName}, \mathit{semver}_1), (\mathit{pkgName}, \mathit{semver}_2) \in V\) に対し，\(\mathit{semver}_1\) と \(\mathit{semver}_2\) は互換性がないバージョンである．</li><li>各有向辺 \(e = (u, v) \in E\) には，\(u\) が \(v\) を <code>used_as</code> でどのように参照しているかのラベル \(w(e) \in \mathrm{ModuleName}\) がついている．</li></ul><p>先ほどのグラフを同様にして図示すると以下のような具合です：</p><p><div><img src=/media/saphe-a-new-prototype-ecosystem-for-satysfi-5.png alt=ロックファイルの内容をラベルつきグラフと捉えた場合の模式図 style=max-width:100%></div></p><p>この例だと同一パッケージの複数バージョンが共存していないのでラベルがついた以外に何も変わりませんが，実際にこのラベルの存在によって複数バージョンが無理なく共存できるようになっています．以下でもう少し見てみましょう．</p><p>まず，「開発中のプロジェクトが <code>easytable.2</code> に依存しており，その <code>easytable.2</code> は必ず <code>base.1</code> に依存するのだが，プロジェクトでは <code>base.2</code> を使いたい」という状況を考えます．これは以下のような形で <code>base.1</code> と <code>base.2</code> を共存させることが可能です：</p><p><div><img src=/media/saphe-a-new-prototype-ecosystem-for-satysfi-6.png alt=複数バージョン共存のグラフ1 style=max-width:100%></div></p><p>これにより，プロジェクト本体からは <code>Base</code> という名前で <code>base.2</code> にアクセスでき，一方で <code>easytable.2</code> からは <code>Base</code> という名前で <code>base.1</code> に曖昧性なくアクセスできます．要するに，<strong><code>used_as</code> によって，メインモジュールの名前が “グローバルに1つの頂点を特定するもの” ではなく “どの頂点からどの頂点をどんな名前で見ているか” のデータになっている</strong>ことにより複数バージョンが共存できています．</p><p>では，もう少し難しい状況を考えましょう： 「先ほどと同様にプロジェクトで <code>base.2</code> を使いたいが，<code>easytable.2</code> が <code>base.1</code> の型をシグネチャに公開しているなどして <code>base.1</code> にも直接依存せねばならない」場合，どうなるでしょうか？ 実はこうした状況も <code>used_as</code> で扱えます．グラフとしては以下のようになります：</p><p><div><img src=/media/saphe-a-new-prototype-ecosystem-for-satysfi-7.png alt=複数バージョン共存のグラフ2 style=max-width:100%></div></p><p>要するに，<code>base.1</code> は <code>used_as</code> に <code>Base1</code> という名前を指定して <code>base.2</code> を指す <code>Base</code> と区別することで呼び分けるということができます．したがって，プロジェクトのパッケージコンフィグファイルには以下のような記述を含めるとよいことになります：</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>dependencies</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Table&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>registered</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>registry</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;default&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;easytable&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>constraint</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^2.1.0&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Base&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>registered</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>registry</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;default&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;base&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>constraint</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^2.0.0&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>used_as</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Base1&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>registered</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>registry</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;default&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;base&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>constraint</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;^1.0.0&#34;</span></span></span></code></pre></div></div><h2 id=取得したファイルは手元でどこに配置されるか>取得したファイルは手元でどこに配置されるか</h2><p>Sapheがパッケージレジストリや各パッケージが指定するURLから取得したファイルは，<strong>ストアルート</strong> (<em>store root</em>) と呼ぶディレクトリの下に配置されます．ストアルートは，Unix系OSに於いては <code>$HOME/.saphe/</code>，（満足に動く保証は全くありませんが）Windowsに於いては <code>%userprofile%\.saphe\</code> です．いずれもいわゆるホームディレクトリを指す環境変数に依存しており，この環境変数が設定されていない場合Sapheは異常終了します．ユーザがこのストアルート以下のファイルを手動でいじったり，新たにファイルを配置したりといった変更を行なうことは推奨されません．</p><p>ストアルート以下は，下記のような構造でファイルが保持されています：</p><div class=upcards-code-block><pre><code>$HOME/.saphe/
+├── saphe-store-root.yaml
+├── registries/
+│   ├── 〈RegistryHashValue_1〉/
+│   ├── 〈RegistryHashValue_2〉/
+│   ...
+│
+├── cache/
+│   └── locks/
+│       ├── 〈RegistryHashValue_1〉/
+│       │   ├── 〈PkgName_1〉.〈SemVer_1_1〉.tar.gz
+│       │   ├── 〈PkgName_1〉.〈SemVer_1_1〉/
+│       │   ├── 〈PkgName_1〉.〈SemVer_1_2〉.tar.gz
+│       │   ...
+│       │   ├── 〈PkgName_2〉.〈SemVer_2_1〉.tar.gz
+│       │   ...
+│       │
+│       ├── 〈RegistryHashValue_2〉/
+│       ...
+│
+└── packages/
+    ├── 〈RegistryHashValue_1〉/
+    │   ├── 〈PkgName_1〉/
+    │   │   ├── 〈PkgName_1〉.〈SemVer_1_1〉/
+    │   │   ├── 〈PkgName_1〉.〈SemVer_1_2〉/
+    │   │   ...
+    │   │
+    │   ├── 〈PkgName_2〉/
+    │   │   ├── 〈PkgName_2〉.〈SemVer_2_1〉/
+    │   │   ...
+    │   ...
+    │
+    ├── 〈RegistryHashValue_2〉/
+    ...</code></pre></div><p>まずストアルート直下にある <code>saphe-store-root.yaml</code> が<strong>ストアルートコンフィグファイル</strong> (<em>store root config file</em>)で，ここには取得されているレジストリのURLなどが記載されています．</p><p><code>registries/</code> は実際に取得されている各レジストリがすぐ下のサブディレクトリに並んでいます．これの各内容はすでに上で述べたとおりです．</p><p><code>cache/locks/</code> には，取得した各実装のtarball <code>〈PkgName_i〉.〈SemVer_i〉.tar.gz</code> が一時的に置かれています．また，その実装のパッケージコンフィグに <code>external_resources</code> の指定がある場合は，その指定に応じて取得した外部ファイルを一時的に置くディレクトリ <code>〈PkgName_i〉.〈SemVer_i〉/</code> もつくられています．</p><p>そして，取得された実装のtarballが解凍されて配置される先が <code>packages/</code> 以下です．ビルドなどで実際に使われるソースファイルは，この <code>packages/</code> 以下にあるものです．</p><h2 id=saphe-update-がやっていること><code>saphe update</code> がやっていること</h2><p><code>saphe update</code> は，手元に取得しているパッケージレジストリの情報を最新のものに更新するためのコマンドです．これは単に各パッケージレジストリからデータを取得して <code>$HOME/.saphe/registries/〈RegistryHashValue_i〉</code> のデータを更新するだけで，Gitリポジトリのパッケージレジストリであればほぼ <code>git pull</code> をしているだけです．</p><h2 id=saphe-build-がやっていること><code>saphe build</code> がやっていること</h2><p><code>saphe build</code> は，すでに書き出されているロックファイルを参照し，必要なパッケージを読むための情報を渡してSATySFi本体を起動し，開発中のプロジェクト（ライブラリや文書）を処理するのでした（<a href=./../2024-01-15-saphe-a-new-prototype-ecosystem-for-satysfi-the-first-half>前編</a>の図再掲）：</p><p><div><img src=/media/saphe-a-new-prototype-ecosystem-for-satysfi-3.png alt="saphe buildの動作の概略図" style=max-width:100%></div></p><p>この過程で行なわれていることを以下の節で記述します．</p><h3 id=エンベロープ-satysfi本体からはパッケージがどう見えるか>エンベロープ： SATySFi本体からはパッケージがどう見えるか</h3><p>まず前提として，Sapheから起動されたSATySFi本体がパッケージをどのように扱うかをこの節で共有しておきます．</p><p><strong>SATySFi本体は，“リリースの単位” としてのパッケージを認識しません</strong>．一方で，“モジュールが集まったひとかたまり” を認識する機能はあり，これを<strong>エンベロープ</strong> (<em>envelope</em>) と呼んでいます<sup id=fnref:1><a href=#fn:1 class=footnote-ref role=doc-noteref>1</a></sup>．1つのエンベロープは，典型的には以下のような構造をしています：</p><div class=upcards-code-block><pre><code>./
+├── satysfi-envelope.yaml
+├── src/
+│   ├── 〈MainModuleFile〉.satyh
+│   ├── 〈SubModuleFile_1〉.satyh
+│   ├── 〈SubModuleFile_2〉.satyh
+│   ...
+└── test/
+    ├── 〈TestFile_1〉.satyh
+    ├── 〈TestFile_2〉.satyh
+    ...</code></pre></div><p>まず，必ず直下のディレクトリに<strong>エンベロープコンフィグファイル</strong> (<em>envelope config file</em>) <code>satysfi-envelope.yaml</code> があります．これには以下のような内容が書かれています：</p><div class=upcards-code-block><div class=highlight><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>library</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>main_module</span><span class=p>:</span><span class=w> </span><span class=l>〈MainModuleName〉</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>source_directories</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>./src</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>test_directories</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=l>./test</span></span></span></code></pre></div></div><p><code>source_directories</code> にソースファイルを格納しているサブディレクトリが，<code>test_directories</code> にテストファイルを格納しているサブディレクトリが，それぞれ列挙されています．また，ソースファイルのうちどれが<strong>メインモジュール</strong> (<em>main module</em>) であるかが <code>main_module</code> に指定されています．このように，エンベロープとは基本的には “リリースに関する情報のないパッケージのようなもの” と理解して差し支えない構造物です．</p><p><strong>SATySFi本体は，起動時に開発中のプロジェクトが依存するエンベロープの置かれているパス一覧を受け取り，それを見に行ってプロジェクトの処理に使います</strong>．より正確には，各エンベロープの間にどのような依存関係があってどのような名前でメインモジュールを参照しているかなどのデータも受け取って使います．このデータの受け渡しは<strong>依存コンフィグファイル</strong> (<em>dependency config file</em>) <code>satysfi-deps.yaml</code> によって行なわれます<sup id=fnref:2><a href=#fn:2 class=footnote-ref role=doc-noteref>2</a></sup>．</p><h3 id=依存コンフィグファイルの生成>依存コンフィグファイルの生成</h3><p>SATySFi本体が読むための依存コンフィグファイルは，Sapheがロックファイルをもとに生成します．前節で述べた通り，依存コンフィグファイルの内容は各エンベロープの配置されているパスとそれらの間の依存関係です．<strong>Sapheは配置済みの各パッケージをエンベロープと看なし，ロックファイルからリリースに関する情報を除去して依存コンフィグファイルを生成し，SATySFi本体に渡します</strong>．依存コンフィグファイルの生成は，模式的に描くと以下のようになります：</p><p><div><img src=/media/saphe-a-new-prototype-ecosystem-for-satysfi-8.png alt=ロックファイルと依存コンフィグファイルの関係の模式図 style=max-width:100%></div></p><p>要するにロックファイルの構造がほとんどそのまま引き継がれています．ロックファイルとの違いは，各頂点は “単なるエンベロープ” を指していて，それがどのパッケージ由来のものかという情報が残っていない点です．例えば，上記の図で言うと \(E_2\) と \(E_3\) とが同じパッケージ由来であるという情報はすでに忘れられています．このようにして，<strong>SATySFi本体からは同一パッケージ由来の2つのエンベロープは互いに全く関係のないものに見えています</strong>．</p><p>ちなみに，「ロックファイルを一旦書き出してから依存コンフィグファイルに変換するよりも，最初から <code>saphe solve</code> の時点で依存コンフィグファイルのみを生成すればよいのではないか？」と疑問に思う方もいるかもしれません．それは大変もっともな着眼点なのですが，やはりロックファイルが必要である理由があります．それは，再現ビルドなど，ロックファイルからデータを読み出す用途が今後生じうると考えているためです．要するに，各パッケージのどのバージョンが使われているのかをSaphe自身が読み出す必要性が十分生じうると考えているからです．依存コンフィグファイルからこれらの情報を読み出すこともありえますが，依存コンフィグファイルの形式はSATySFi本体側が規定しているものであり，Sapheの都合は知らないので，仮に読み出せるとしても “リバースエンジニアリング” になってしまい責務分担上不自然です．これゆえに，ロックファイルと依存コンフィグファイルは別々にあるべきと考え，別々になっています．</p><p>なお，前編からの繰り返しになりますが，ロックファイルはバージョン管理に含めるべきものである一方で依存コンフィグファイルはバージョン管理に含めるものではありません．</p><h2 id=future-work>Future Work</h2><p>Sapheもプロトタイプとしてはわりと形になってきましたが，今後はさらに以下のような変更を施すことを考えています：</p><ul><li>修正：<ul><li>安全性：<ul><li>コンフィグファイルから読み取るパッケージ名・モジュール名などの文字列を適切にバリデートする</li><li>セキュリティ上の懸念から，<code>external_resouces</code> によって取得したファイルを配置できる場所を制限する</li><li>エラーが生じて実行を中断するとき，可能な限り状態の一貫性を回復してから処理を終えられるようにする</li></ul></li><li>ファイル配置：<ul><li>中間生成物は <code>target/</code> ディレクトリ以下に生成したりできるようにする</li></ul></li><li>依存解決処理：<ul><li>非互換なバージョンがなるべく共存しない依存解決を優先する</li></ul></li></ul></li><li>機能追加：<ul><li><code>saphe init</code> 時の <code>.gitignore</code> の生成</li><li><code>saphe cache clear</code> で取得済みのファイルを消せるようにする</li><li><code>saphe build</code> が実行されたときに，必要であれば自動で <code>saphe solve</code> をその前に実行する</li><li>複数の <code>saphe</code> プロセスが同時に起動しても破綻しないように何らかの排他制御をする</li></ul></li></ul><h2 id=sapheが規定する各種形式>Sapheが規定する各種形式</h2><p>この章ではSapheが扱う各種ファイルの形式の，現状のフォーマルな定義を記載します．</p><ul><li><code>?</code> と <code>default</code> のついているフィールドは，省略可能であることを表します．</li><li><code>…</code> は他のパターンを追加で扱えるようにする可能性が高いことを表します．</li><li><code>++</code> はフィールド名が重複しない2つのオブジェクトの結合を表します．</li></ul><h3 id=パッケージコンフィグ>パッケージコンフィグ</h3><h4 id=packageconfig><code>PackageConfig</code></h4><div class=upcards-code-block><pre><code>PackageConfig ::= {
+  saphe: VersionRequirement,
+  satysfi: VersionRequirement,
+  ?name: (PackageName | null) default = null,
+  authors: List(String),
+  ?registries: List(Registry) default = [],
+  ?external_resources: List(ExternalResource) default = [],
+  contents: PackageContents,
+  ?dependencies: List(Dependency) default = [],
+  ?test_dependencies: List(Dependency) default = [],
+}</code></pre></div><ul><li><code>saphe</code>： このパッケージコンフィグを処理するSapheに期待するバージョン</li><li><code>satysfi</code>： 文書やパッケージを処理してほしいSATySFi本体のバージョン</li><li><code>name</code>： パッケージ名．人間が読むためのもので，処理上はバリデーションに使いうる以外特に指定する意味がない</li><li><code>authors</code>： このパッケージまたは文書の作者の名前を列挙したもの</li><li><code>registries</code>： 使用するレジストリの列挙．典型的には <code>saphe init</code> で生成される <code>registry: "default"</code> のものだけが記述される</li><li><code>external_resources</code>： インストール時に外部から取得するファイルの指定．主としてフォントパッケージでの使用を想定している</li><li><code>contents</code>： このパッケージまたは文書の内容</li><li><code>dependencies</code>： 依存パッケージの列挙</li><li><code>test_dependencies</code>： テスト用の依存パッケージの列挙</li></ul><div class=upcards-code-block><pre><code>PackageContents ::=
+    { document: Document }
+  | { library: Library }
+  | { font: Font }
+  | …</code></pre></div><p>パッケージまたは文書の内容．文書の場合は <code>document</code> を，ライブラリの場合は <code>library</code> を，フォントパッケージの場合は <code>font</code> を，それぞれ記載する．形式は今後増えるかもしれない．</p><div class=upcards-code-block><pre><code>Document ::= {}</code></pre></div><p>今のところ特に指定項目なし．将来的にはビルド用オプションなどを指定できるようにするかもしれない．</p><div class=upcards-code-block><pre><code>Library ::= {
+  main_module: UppercaseIdentifier,
+  source_directories: List(RelativePath),
+  ?test_directories: List(RelativePath) default = [],
+  ?markdown_conversion: (MarkdownConversion | null) default = null,
+}
+
+RelativePath ::= String</code></pre></div><ul><li><code>main_module</code>： メインモジュールの指定</li><li><code>source_directories</code>： ソースファイルが置かれているディレクトリへの相対パスの列挙．典型的には <code>[ "./src" ]</code></li><li><code>test_directories</code>： テストファイルが置かれているディレクトリへの相対パスの列挙．典型的には <code>[ "./test" ]</code></li><li><code>markdown_conversion</code>： Markdown入力を受けつけるクラスファイルに於ける指定で，Markdown中の各マークアップをどのようなSATySFiコマンドに変換するかを指定したもの</li></ul><div class=upcards-code-block><pre><code>Font ::= {
+  main_module: UppercaseIdentifier,
+  files: List(FontFile),
+}</code></pre></div><ul><li><code>main_module</code>： メインモジュールの指定だが，使われない．フォントパッケージを使う側が <code>used_as</code> でメインモジュール名を指定するため．</li><li><code>files</code>： フォントファイルに関する指定の列挙</li></ul><h4 id=packagename><code>PackageName</code></h4><div class=upcards-code-block><pre><code>PackageName ::= LowercaseIdentifier</code></pre></div><p>パッケージ名．小文字始まりでケバブケースの文字列でなければならない．</p><h4 id=versionrequirementsemanticversion><code>VersionRequirement</code>，<code>SemanticVersion</code></h4><div class=upcards-code-block><pre><code>VersionRequirement ::= "^" SemanticVersion | …
+
+SemanticVersion ::= Decimal "." Decimal "." Decimal | …
+
+Decimal ::= "0" | ("1"-"9") ("0"-"9")*</code></pre></div><p>バージョン指定．現状では <code>^</code> を先頭につけた「特定のバージョンまたはそれに後方互換な任意のバージョン」の指定のみが可能</p><h4 id=registryregistrynameregistryremote><code>Registry</code>，<code>RegistryName</code>，<code>RegistryRemote</code></h4><div class=upcards-code-block><pre><code>Registry ::= {
+  name: RegistryName,
+} ++ RegistryRemote
+
+RegistryName ::= String
+
+RegistryRemote ::= { git: GitRegistry } | …
+
+GitRegistry ::= {
+  url: String,
+  branch: String,
+}</code></pre></div><p>パッケージレジストリの指定，現状ではGitリポジトリのみが指定可能．ここで <code>name</code> に指定したレジストリ名はコンフィグファイル内でのみ通用し，依存パッケージの記述の <code>registry:</code> で使われる</p><h4 id=dependency><code>Dependency</code></h4><div class=upcards-code-block><pre><code>Dependency ::= {
+  used_as: UppercaseIdentifier,
+} ++ DependencySpec
+
+DependencySpec ::=
+    { registered: RegisteredDependencySpec }
+  | { local: LocalDependencySpec }
+  | …
+
+RegisteredDependencySpec ::= {
+  registry: RegistryName,
+  name: PackageName,
+  requirement: VersionRequirement,
+}
+
+LocalDependencySpec ::= {
+  path: RelativePath,
+}</code></pre></div><p>依存パッケージの指定．現状ではパッケージレジストリに登録されているものかサブディレクトリが指定できる．</p><h4 id=externalresource><code>ExternalResource</code></h4><div class=upcards-code-block><pre><code>ExternalResource ::= {
+  name: ExternalResourceName,
+} ++ ({zip : ZipExternalResource} | …)
+
+ExternalResourceName ::= (! '/')*</code></pre></div><p>外部から取得するファイルに関するデータ．</p><ul><li><code>name</code>： 取得を一意に識別する名前．一時ファイルの名前などに使う</li></ul><div class=upcards-code-block><pre><code>ZipExternalResource ::= {
+  url: String,
+  checksum: String,
+  extractions: List(Extraction),
+}</code></pre></div><ul><li><code>url</code>： zipファイルを取得する元のURL</li><li><code>checksum</code>： ファイルのMD5チェックサム．取得したファイルが期待通りの内容であることを確かめるのに使う</li><li><code>extractions</code>： zipファイルの中身をどこに展開するかの指定の列挙</li></ul><div class=upcards-code-block><pre><code>Extraction ::= {
+  from: RelativePath,
+  to: RelativePath,
+}</code></pre></div><ul><li><code>from</code>： zipファイル中に格納されているファイルの相対パス</li><li><code>to</code>： <code>from</code> に指定されたファイルを，パッケージコンフィグファイルから見てどの相対パスに配置したいかの指定</li></ul><h4 id=fontfile><code>FontFile</code></h4><div class=upcards-code-block><pre><code>FontFile ::= {
+  path: String,
+} ++ FontFileContents
+
+FontFileContents ::=
+  { opentype_single: FontSpec }
+| { opentype_collection: List(FontSpec) }</code></pre></div><p>フォントファイルの相対パスと，そのファイルに格納されている内容の指定．単一のフォントを格納しているOpenTypeファイルである場合は <code>opentype_single</code> を，OpenType Collectionである場合は <code>opentype_collection</code> を，それぞれ指定する．ここでいうところの「OpenTypeファイル」とはOpen Font Formatに適合するフォントファイルすべてを指す広義の意味であり，狭義であるCFFアウトラインをもつファイルのみに限らない．</p><div class=upcards-code-block><pre><code>FontSpec ::= {
+  name: LowercaseIdentifier,
+  ?math: Boolean default = false,
+}</code></pre></div><ul><li><code>name</code>： 該当フォントにプログラムから見てどんな識別子でアクセスできるようにするかの指定</li><li><code>math</code>： 数式フォントとして使うかの指定</li></ul><h4 id=markdownconversion><code>MarkdownConversion</code></h4><div class=upcards-code-block><pre><code>MarkdownConversion ::= {
+  document: LowercaseIdentifier,
+  paragraph: BlockCommand,
+  hr: BlockCommand,
+  h1: BlockCommand,
+  h2: BlockCommand,
+  h3: BlockCommand,
+  h4: BlockCommand,
+  h5: BlockCommand,
+  h6: BlockCommand,
+  ul: BlockCommand,
+  ol: BlockCommand,
+  code_block: BlockCommand,
+  blockquote: BlockCommand,
+  emph: InlineCommand,
+  strong: InlineCommand,
+  ?hard_break: (InlineCommand | null) default = null,
+  code: InlineCommand,
+  link: InlineCommand,
+  img: InlineCommand,
+}
+
+BlockCommand ::= "+" (UppercaseIdentifier ".")* LowercaseIdentifier
+
+InlineCommand ::= "\" (UppercaseIdentifier ".")* LowercaseIdentifier</code></pre></div><p>クラスパッケージでのみ用いる，Markdown形式の入力をどのように変換するかの指定．</p><h3 id=ロックファイル>ロックファイル</h3><h4 id=lockconfig><code>LockConfig</code></h4><div class=upcards-code-block><pre><code>LockConfig ::= {
+  saphe: VersionRequirement,
+  ?locks: List(Lock) default = [],
+  ?dependencies: List(LockDependency),
+  ?test_dependencies: List(LockDependency),
+}</code></pre></div><ul><li><code>ecosystem</code>： ロックファイルを読むSapheに期待するバージョン</li><li><code>locks</code>： 使用する<strong>ロック</strong>（バージョンが固定されたパッケージ）の列挙</li><li><code>dependencies</code>： プロジェクトが直接依存するロックの列挙</li><li><code>test_dependencies</code>： プロジェクトがテスト時にのみ直接依存するロックの列挙</li></ul><h4 id=locklockname><code>Lock</code>，<code>LockName</code></h4><div class=upcards-code-block><pre><code>Lock ::= {
+  name: LockName,
+  ?dependencies: LockDependency default = [],
+  ?test_only: Boolean default = false,
+} ++ LockContents
+
+LockName ::= String</code></pre></div><p>1つのロックに関するデータ．</p><ul><li><code>name</code>： ロックを識別するための名前．任意の文字列が使える（<code>/</code> などを含んでいてもよい）．</li><li><code>dependencies</code>： このロックが依存する他のロックの列挙</li><li><code>test_only</code>： プロジェクトのテスト時にのみ使われるロックであるか否か</li></ul><h4 id=lockcontents><code>LockContents</code></h4><div class=upcards-code-block><pre><code>LockContents ::= { registered: RegisteredLock } | …
+
+RegisteredLock ::= {
+  registry_hash_value: RegistryHashValue,
+  package_name: PackageName,
+  version: SemanticVersion,
+}</code></pre></div><ul><li><code>registry_hash_value</code>： レジストリを識別するための値</li><li><code>package_name</code>： パッケージ名</li><li><code>version</code>： パッケージのバージョン</li></ul><h4 id=registryhashvalue><code>RegistryHashValue</code></h4><div class=upcards-code-block><pre><code>RegistryHashValue = ("0"-"9" | "a" - "z" | "-")+</code></pre></div><p>レジストリを識別するための値．具体的にはURLなどのデータから生成されたハッシュ値</p><h4 id=lockdependency><code>LockDependency</code></h4><div class=upcards-code-block><pre><code>LockDependency ::= {
+  name: LockName,
+  used_as: UppercaseIdentifier,
+}</code></pre></div><p>ロックへの依存の記述．</p><ul><li><code>name</code>： ロックの名前</li><li><code>used_as</code>： そのロックのメインモジュールをどんな名前で参照するか</li></ul><h3 id=ストアルートコンフィグ>ストアルートコンフィグ</h3><div class=upcards-code-block><pre><code>StoreRootConfig ::= {
+  saphe: VersionRequirement,
+  registries: List(StoredRegistry),
+}</code></pre></div><p>ストアルートコンフィグファイルの内容．</p><ul><li><code>saphe</code>： Sapheのバージョン</li><li><code>registries</code>： 保持しているレジストリの一覧</li></ul><div class=upcards-code-block><pre><code>StoredRegistry ::= {
+  hash_value: RegistryHashValue,
+} ++ StoredRemoteRegistrySpec
+
+StoredRemoteRegistrySpec ::= { git: StoredGitRegistrySpec } | …</code></pre></div><p>保持しているレジストリのデータ．</p><ul><li><code>hash_value</code>： 保持しているレジストリを識別するための値</li></ul><div class=upcards-code-block><pre><code>StoredGitRegistrySpec ::= {
+  url: String,
+  branch: String,
+}</code></pre></div><p>Gitによって管理されているレジストリのデータ．</p><ul><li><code>url</code>： レジストリとして使われているGitリポジトリのURL</li><li><code>branch</code>： branchの指定</li></ul><h3 id=レジストリコンフィグ>レジストリコンフィグ</h3><div class=upcards-code-block><pre><code>RegistryConfig ::= { registry_format: String }</code></pre></div><ul><li><code>registry_format</code>： レジストリの形式のバージョン．現在のところ <code>"1"</code> のみが妥当な値．</li></ul><h3 id=リリースコンフィグ>リリースコンフィグ</h3><div class=upcards-code-block><pre><code>ReleaseConfig ::= {
+  saphe: VersionRequirement,
+  satysfi: VersionRequirement,
+  name: PackageName,
+  authors: List(String),
+  contents: PackageContents,
+  ?dependencies: List(Dependency) default = [],
+}</code></pre></div><p>ほぼ <code>PackageConfig</code> と同じ．</p><h2 id=satysfiが規定する各種形式>SATySFiが規定する各種形式</h2><h3 id=依存コンフィグ>依存コンフィグ</h3><div class=upcards-code-block><pre><code>DepsConfig ::= {
+  envelopes: List(EnvelopeSpec),
+  dependencies: List(EnvelopeDependency),
+  test_dependencies: List(EnvelopeDependency),
+}</code></pre></div><p>依存コンフィグファイルの内容．</p><ul><li><code>envelopes</code>： 文書やライブラリに必要なエンベロープの一覧</li><li><code>dependencies:</code>： 文書やライブラリが直接依存するエンベロープの列挙</li><li><code>test_dependencies</code>： ライブラリのテストが直接依存するエンベロープの列挙</li></ul><div class=upcards-code-block><pre><code>EnvelopeSpec ::= {
+  name: EnvelopeName,
+  path: String,
+  dependencies: List(EnvelopeDependency),
+  test_only: Boolean,
+}</code></pre></div><p>1つのエンベロープに関するデータ．</p><ul><li><code>name</code>： エンベロープ名</li><li><code>path</code>： 該当エンベロープのエンベロープコンフィグを指す相対パス</li><li><code>dependencies</code>： 該当エンベロープが依存する他のエンベロープの列挙</li><li><code>test_only</code>： テストでのみ使用するエンベロープであるか否か</li></ul><div class=upcards-code-block><pre><code>EnvelopeDependency ::= {
+  name: EnvelopeName,
+  used_as: UppercaseIdentifier,
+}</code></pre></div><p>他のエンベロープへの依存の記述．</p><ul><li><code>name</code>： 依存するエンベロープの名前</li><li><code>used_as</code>： そのエンベロープのメインモジュールをどのような名前で参照するか</li></ul><h3 id=エンベロープコンフィグ>エンベロープコンフィグ</h3><div class=upcards-code-block><pre><code>EnvelopeConfig ::=
+    { library: LibraryEnvelope}
+  | { font: FontEnvelope }
+  | …</code></pre></div><p>エンベロープコンフィグファイルの内容．基本的にはユーザが書いたパッケージコンフィグの一部が転記されたもの．</p><h4 id=libraryenvelope><code>LibraryEnvelope</code></h4><div class=upcards-code-block><pre><code>LibraryEnvelope ::= {
+  main_module: UpperIdentifier,
+  source_directories: List(String),
+  test_directories: List(String),
+  ?markdown_conversion: (MarkdownConversion | null) default = null,
+}</code></pre></div><ul><li><code>main_module</code>： メインモジュールとなるモジュールの指定</li><li><code>source_directories</code>： ソースファイルが置かれているディレクトリの相対パスの列挙．ここに指定されたディレクトリで該当する拡張子のファイルはすべてソースファイルとみなされる．サブディレクトリは明示的に書かれていない限り含まない</li><li><code>test_directories</code>： テストファイルが置かれているディレクトリの相対パスの列挙</li><li><code>markdown_conversion</code>： Markdown入力の変換方法</li></ul><h4 id=fontenvelope><code>FontEnvelope</code></h4><div class=upcards-code-block><pre><code>FontEnvelope ::= {
+  main_module: UpperIdentifier,
+  files: List(FontFile),
+}</code></pre></div><ul><li><code>main_module</code>： メインモジュール名だが，現在のところは特に必要のないデータ</li><li><code>files</code>： フォントファイルの指定</li></ul><div class=footnotes role=doc-endnotes><hr><ol><li id=fn:1><p>エンベロープは「封筒」の意で，文書と縁語で洒落てるんじゃないかなと思って名づけたものです．&#160;<a href=#fnref:1 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li><li id=fn:2><p>依存コンフィグファイルを経由せずにコマンドラインで直接受け取る形でもよいのですが，コマンドラインで受け取るには幾分か複雑なデータであるため，一旦YAMLファイルに書き出されたものをSATySFi本体が読む形をとることにしました．&#160;<a href=#fnref:2 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li></ol></div></div></div><script type=text/javascript>const pageNavbarHeight=50,fixedTop=30;function setTocPosition(e){const t=document.documentElement.scrollTop;t<e?tocElement.style.top=""+(fixedTop+(e-t))+"px":tocElement.style.top=""+fixedTop+"px"}const tocElement=document.getElementById("toc");tocElement!==null&&window.addEventListener("load",n=>{const t=document.getElementById("articleHeading").offsetHeight,e=t+pageNavbarHeight;window.addEventListener("scroll",t=>{setTocPosition(e)}),setTocPosition(e)})</script><script async src=https://platform.twitter.com/widgets.js></script></main><footer class="footer py-3 bg-light"><p class="footer text-center">(c) 2024 Copyright: Takashi Suwa</p></footer><script src=https://gfngfn.github.io/js/bootstrap.bundle.min.js></script>
+<script src=https://gfngfn.github.io/js/masonry.pkgd.min.js></script>
+<script src=https://gfngfn.github.io/js/feather.min.js></script>
+<script>feather.replace()</script><script>window.addEventListener("load",function(){var t,e=document.getElementById("grid");e!==null&&(t=new Masonry(e,{itemSelector:".upcards-grid-item",horizontalOrder:!0,fitWidth:!0,gutter:0}))})</script></body></html>
