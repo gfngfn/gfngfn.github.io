@@ -202,7 +202,7 @@ end</code></pre></div><p>テストは一旦置いておいて，まずはこの�
 │   └── calc.satyh
 └── test
     └── calc-test.satyh</code></pre></div><p>ロックファイル <code>saphe.lock.yaml</code> が生成されるのは文書の場合と同様ですが，これに加えて<strong>エンベロープファイル</strong> <code>satysfi-envelope.yaml</code> も生成されました．エンベロープファイルはSATySFi 0.1.0処理系本体が読むためのファイルであり，簡単に言えばソースファイルやテストファイルの位置がコンフィグファイルから転記されているものです．ロックファイルと同様，ユーザが読み書きすることはありませんが，バージョン管理には含めるべきファイルです．</p><p>ちなみに，<strong>エンベロープ</strong>とは（Sapheではなく）SATySFi処理系本体から見えるパッケージのような単位のことなのですが，これについては本稿の取り扱い範囲とせず<a href=./../2024-03-31-saphe-a-new-prototype-ecosystem-for-satysfi-the-second-half>後編</a>に譲ります．実際，ユーザはエンベロープの存在を意識せずともSapheを介してSATySFi 0.1.0が使えるようになっています．</p><h3 id=3-型検査を走らせる>3. 型検査を走らせる</h3><p>ライブラリの型検査はやはり <code>build</code> サブコマンドで行なわれます：</p><div class=upcards-console-block><pre><code>$ saphe build . --verbose
-  deps file: 'satysfi-deps.yaml'
+  deps file: '_build/satysfi-deps.yaml'
   parsing 'src/calc.satyh' ...
   parsing '~/.saphe/packages/6f2b80e9bb7c4e8af2104999fc25dbb3/stdlib/stdlib.0.0.1/src/paper-size.satyh' ...
 （中略）
@@ -211,7 +211,7 @@ end</code></pre></div><p>テストは一旦置いておいて，まずはこの�
  ---- ---- ---- ----
   type checking 'src/calc.satyh' ...
   type check passed.
-  deps config written on 'satysfi-deps.yaml'.</code></pre></div><p>通りました．やったぜ．</p><h3 id=4-テストを走らせる>4. テストを走らせる</h3><p>今度はユニットテストを実行してみましょう．まず，生成された <code>calc-test.satyh</code> は以下のようなファイルです：</p><div class=upcards-code-block><pre><code>use package open Testing
+  deps config written on '_build/satysfi-deps.yaml'.</code></pre></div><p>通りました．やったぜ．</p><h3 id=4-テストを走らせる>4. テストを走らせる</h3><p>今度はユニットテストを実行してみましょう．まず，生成された <code>calc-test.satyh</code> は以下のようなファイルです：</p><div class=upcards-code-block><pre><code>use package open Testing
 use Calc
 
 module CalcTest = struct
